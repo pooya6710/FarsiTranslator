@@ -95,7 +95,7 @@ def extract_audio(video_path: str, output_format: str = 'mp3', bitrate: str = '1
 
 def extract_audio_with_ytdlp(video_path: str, output_format: str = 'mp3', bitrate: str = '192k') -> Optional[str]:
     """
-    استخراج صدا از فایل ویدیویی با استفاده از yt-dlp
+    استخراج صدا از فایل ویدیویی با استفاده از yt-dlp (نسخه بهبود یافته)
     
     Args:
         video_path: مسیر فایل ویدیویی
@@ -117,16 +117,27 @@ def extract_audio_with_ytdlp(video_path: str, output_format: str = 'mp3', bitrat
         try:
             import yt_dlp
             
-            # تنظیمات yt-dlp
+            # تنظیمات پیشرفته yt-dlp برای استخراج صدا با کیفیت بالا
             ydl_opts = {
-                'format': 'bestaudio/best',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': output_format,
-                    'preferredquality': bitrate.replace('k', ''),
-                }],
+                'format': 'bestaudio[ext=m4a]/bestaudio/best',
+                'postprocessors': [
+                    {
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': output_format,
+                        'preferredquality': bitrate.replace('k', ''),
+                    },
+                    {
+                        # پردازشگر برای بهبود کیفیت صدا و اضافه کردن متادیتا
+                        'key': 'FFmpegMetadata',
+                        'add_metadata': True,
+                    }
+                ],
+                'postprocessor_args': [
+                    '-ar', DEFAULT_AUDIO_SAMPLE_RATE,  # نرخ نمونه‌برداری
+                    '-ac', DEFAULT_AUDIO_CHANNELS,     # تعداد کانال‌ها (استریو)
+                ],
                 'outtmpl': temp_output,
-                'quiet': True,
+                'quiet': False,  # نمایش جزئیات بیشتر برای عیب‌یابی
                 'noplaylist': True,
             }
             

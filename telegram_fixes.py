@@ -34,15 +34,22 @@ os.makedirs(DEFAULT_DOWNLOAD_DIR, exist_ok=True)
 # تنظیمات FFmpeg
 DEFAULT_FFMPEG_PATH = "ffmpeg"
 
-# تعیین کیفیت‌های استاندارد ویدیو
+# تعیین کیفیت‌های استاندارد ویدیو با گزینه‌های پیشرفته
 VIDEO_QUALITY_MAP = {
-    'best': {'height': None, 'width': None},
-    '1080p': {'height': 1080, 'width': 1920},
-    '720p': {'height': 720, 'width': 1280},
-    '480p': {'height': 480, 'width': 854},
-    '360p': {'height': 360, 'width': 640},
-    '240p': {'height': 240, 'width': 426},
-    'audio': {'height': 0, 'width': 0, 'audio_only': True}
+    'best': {'height': None, 'width': None, 'display_name': 'بهترین کیفیت', 
+             'ffmpeg_options': []},
+    '1080p': {'height': 1080, 'width': 1920, 'display_name': 'کیفیت Full HD (1080p)', 
+              'ffmpeg_options': ['-vf', 'scale=-2:1080', '-b:v', '2500k']},
+    '720p': {'height': 720, 'width': 1280, 'display_name': 'کیفیت HD (720p)', 
+             'ffmpeg_options': ['-vf', 'scale=-2:720', '-b:v', '1500k']},
+    '480p': {'height': 480, 'width': 854, 'display_name': 'کیفیت متوسط (480p)', 
+             'ffmpeg_options': ['-vf', 'scale=-2:480', '-b:v', '1000k']},
+    '360p': {'height': 360, 'width': 640, 'display_name': 'کیفیت پایین (360p)', 
+             'ffmpeg_options': ['-vf', 'scale=-2:360', '-b:v', '700k']},
+    '240p': {'height': 240, 'width': 426, 'display_name': 'کیفیت خیلی پایین (240p)', 
+             'ffmpeg_options': ['-vf', 'scale=-2:240', '-b:v', '500k']},
+    'audio': {'height': 0, 'width': 0, 'audio_only': True, 'display_name': 'فقط صدا', 
+              'ffmpeg_options': ['-vn', '-ar', '44100', '-ac', '2', '-b:a', '192k']}
 }
 
 # تنظیمات هدرهای HTTP
@@ -175,45 +182,78 @@ async def download_with_quality(url: str, quality: str = 'best', is_audio: bool 
         # ایجاد مسیر خروجی منحصر به فرد
         download_id = uuid.uuid4().hex[:8]
         
+        # دریافت تنظیمات کیفیت
+        quality_settings = VIDEO_QUALITY_MAP.get(quality, VIDEO_QUALITY_MAP.get('best', {}))
+        ffmpeg_options = quality_settings.get('ffmpeg_options', [])
+        height = quality_settings.get('height')
+        display_name = quality_settings.get('display_name', quality)
+        logger.info(f"کیفیت انتخاب شده: {display_name} (ارتفاع: {height})")
+        
         # اگر درخواست صوتی است
         if is_audio:
             logger.info(f"درخواست دانلود صوتی از {source_type}: {url}")
             ydl_opts.update({
-                'format': 'bestaudio/best',
+                'format': 'bestaudio[ext=m4a]/bestaudio/best',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
                     'preferredquality': '192',
+                },
+                {
+                    # پردازشگر برای بهبود کیفیت صدا و اضافه کردن متادیتا
+                    'key': 'FFmpegMetadata',
+                    'add_metadata': True,
                 }],
+                'postprocessor_args': [
+                    '-ar', '44100',  # نرخ نمونه‌برداری
+                    '-ac', '2',      # تعداد کانال‌ها (استریو)
+                    '-b:a', '192k',  # بیت‌ریت
+                ],
             })
             output_template = os.path.join(DEFAULT_DOWNLOAD_DIR, f'{source_type}_audio_{download_id}.%(ext)s')
         else:
             # انتخاب تنظیمات مناسب برای منبع
             if source_type == 'youtube':
-                # دانلود از یوتیوب
+                # دانلود از یوتیوب با تنظیمات پیشرفته
                 format_spec = get_format_spec_for_quality(quality)
                 logger.info(f"یوتیوب - انتخاب کیفیت {quality} با فرمت: {format_spec}")
+                
+                # تنظیمات پیشرفته برای کنترل کیفیت
                 ydl_opts.update({
                     'format': format_spec,
+                    'merge_output_format': 'mp4',  # ترکیب ویدیو و صدا در فرمت MP4
                 })
+                
+                # اضافه کردن تنظیمات FFmpeg در صورت وجود
+                if ffmpeg_options:
+                    logger.info(f"اعمال تنظیمات FFmpeg: {ffmpeg_options}")
+                    ydl_opts['postprocessor_args'] = ffmpeg_options
+                
                 output_template = os.path.join(DEFAULT_DOWNLOAD_DIR, f'youtube_{quality}_{download_id}.%(ext)s')
             
             elif source_type == 'instagram':
-                # دانلود از اینستاگرام
-                # اینستاگرام کیفیت‌های کمتری ارائه می‌دهد
+                # دانلود از اینستاگرام با تنظیمات بهینه
                 if quality == 'best':
                     format_spec = 'best[ext=mp4]/best'
                 else:
-                    height = VIDEO_QUALITY_MAP.get(quality, {}).get('height', 0)
                     if height:
                         format_spec = f'best[height<={height}][ext=mp4]/best[height<={height}]/best'
                     else:
                         format_spec = 'best[ext=mp4]/best'
                 
                 logger.info(f"اینستاگرام - انتخاب کیفیت {quality} با فرمت: {format_spec}")
+                
+                # تنظیمات پیشرفته برای کنترل کیفیت
                 ydl_opts.update({
                     'format': format_spec,
+                    'merge_output_format': 'mp4',  # اطمینان از خروجی MP4
                 })
+                
+                # اضافه کردن تنظیمات FFmpeg در صورت وجود
+                if ffmpeg_options:
+                    logger.info(f"اعمال تنظیمات FFmpeg: {ffmpeg_options}")
+                    ydl_opts['postprocessor_args'] = ffmpeg_options
+                
                 output_template = os.path.join(DEFAULT_DOWNLOAD_DIR, f'instagram_{quality}_{download_id}.%(ext)s')
             else:
                 # منبع نامشخص

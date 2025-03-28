@@ -1184,35 +1184,61 @@ class YouTubeDownloader:
             ydl_opts = self.ydl_opts.copy()
             
             if is_audio_only:
+                # تنظیمات پیشرفته برای صدا
                 ydl_opts.update({
-                    'format': 'bestaudio[ext=m4a]',
+                    'format': 'bestaudio[ext=m4a]/bestaudio/best',
                     'postprocessors': [{
                         'key': 'FFmpegExtractAudio',
                         'preferredcodec': 'mp3',
                         'preferredquality': '192',
+                    },
+                    {
+                        # پردازشگر برای بهبود کیفیت صدا
+                        'key': 'FFmpegMetadata',
+                        'add_metadata': True,
                     }],
                     'outtmpl': output_path.replace('.mp3', '.%(ext)s'),
+                    'postprocessor_args': [
+                        '-ar', '44100',  # نرخ نمونه‌برداری
+                        '-ac', '2',      # تعداد کانال‌ها (استریو)
+                        '-b:a', '192k',  # بیت‌ریت
+                    ],
                 })
             else:
                 # انتخاب فرمت بر اساس گزینه کاربر با اولویت کیفیت خاص
                 if '1080p' in format_option:
                     format_spec = 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best[height<=1080]'
+                    quality = '1080p'
                 elif '720p' in format_option:
                     format_spec = 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[height<=720]'
+                    quality = '720p'
                 elif '480p' in format_option:
                     format_spec = 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]/best[height<=480]'
+                    quality = '480p'
                 elif '360p' in format_option:
                     format_spec = 'bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/best[height<=360][ext=mp4]/best[height<=360]'
+                    quality = '360p'
                 elif '240p' in format_option:
                     format_spec = 'bestvideo[height<=240][ext=mp4]+bestaudio[ext=m4a]/best[height<=240][ext=mp4]/best[height<=240]'
+                    quality = '240p'
                 else:
                     format_spec = 'best[ext=mp4]/best'
+                    quality = 'best'
                     
-                logger.info(f"استفاده از فرمت {format_spec} برای دانلود یوتیوب با گزینه {format_option}")
+                logger.info(f"استفاده از فرمت {format_spec} برای دانلود یوتیوب با کیفیت {quality}")
                     
+                # تنظیمات بیشتر برای بهبود کیفیت دانلود
                 ydl_opts.update({
                     'format': format_spec,
                     'outtmpl': output_path,
+                    'merge_output_format': 'mp4',  # ترکیب ویدیو و صدا در فرمت MP4
+                    'postprocessor_args': [
+                        # تنظیمات انکودر برای کنترل کیفیت
+                        '-c:v', 'libx264',  # انکودر ویدیو
+                        '-c:a', 'aac',  # انکودر صدا
+                        '-b:a', '128k',  # بیت‌ریت صدا
+                        '-preset', 'fast',  # سرعت انکود (کیفیت متوسط، سرعت بیشتر)
+                    ],
                 })
                 
             # بررسی پلی‌لیست
@@ -1994,7 +2020,13 @@ async def handle_download_option(update: Update, context: ContextTypes.DEFAULT_T
 
 async def download_instagram(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, option_id: str) -> None:
     """
-    دانلود ویدیوی اینستاگرام
+    دانلود ویدیوی اینستاگرام با کیفیت مشخص
+    
+    Args:
+        update: آبجکت آپدیت تلگرام
+        context: کانتکست تلگرام
+        url: آدرس اینستاگرام
+        option_id: شناسه گزینه انتخاب شده (می‌تواند نام کیفیت یا شماره باشد)
     """
     query = update.callback_query
     
@@ -2005,23 +2037,49 @@ async def download_instagram(update: Update, context: ContextTypes.DEFAULT_TYPE,
         # تعیین کیفیت بر اساس گزینه انتخاب شده
         quality = "best"
         is_audio = False
+        display_name = "بهترین کیفیت"  # نام نمایشی پیش‌فرض
+        user_id = update.effective_user.id
         
-        # بررسی نوع دانلود
-        if isinstance(option_id, str):
-            if "medium" in option_id:
+        logger.info(f"گزینه انتخاب شده برای دانلود اینستاگرام: {option_id}")
+        
+        # بررسی اگر این یک درخواست فقط صدا باشد
+        if option_id == "audio":
+            logger.info("درخواست دانلود فقط صدا")
+            quality = "audio"
+            is_audio = True
+            display_name = "فقط صدا"
+        # بررسی نوع دانلود از نظر کیفیت
+        elif "1080p" in option_id:
+            quality = "1080p"
+            display_name = "کیفیت Full HD (1080p)"
+        elif "720p" in option_id:
+            quality = "720p"
+            display_name = "کیفیت HD (720p)"
+        elif "480p" in option_id:
+            quality = "480p"
+            display_name = "کیفیت متوسط (480p)"
+        elif "360p" in option_id:
+            quality = "360p"
+            display_name = "کیفیت پایین (360p)"
+        elif "240p" in option_id:
+            quality = "240p"
+            display_name = "کیفیت خیلی پایین (240p)"
+        elif "medium" in option_id:
+            quality = "medium"
+            display_name = "کیفیت متوسط"
+        elif "low" in option_id:
+            quality = "low"
+            display_name = "کیفیت پایین"
+        elif option_id.isdigit():
+            # اگر به عنوان یک عدد ارسال شده باشد (برای سازگاری با قبل)
+            option_num = int(option_id)
+            if option_num == 1:
                 quality = "medium"
-            elif "low" in option_id:
+                display_name = "کیفیت متوسط"
+            elif option_num == 2:
                 quality = "low"
-            elif "audio" in option_id:
-                quality = "audio"
-                is_audio = True
-        else:
-            # اگر به عنوان یک عدد ارسال شده باشد
-            if option_id == "1":
-                quality = "medium"
-            elif option_id == "2":
-                quality = "low"
-            elif option_id == "3":
+                display_name = "کیفیت پایین"
+            elif option_num == 3:
                 quality = "audio"
                 is_audio = True
             
