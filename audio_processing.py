@@ -48,7 +48,7 @@ def extract_audio(video_path: str, output_format: str = 'mp3', bitrate: str = '1
         base_name = os.path.basename(video_path)
         file_name, _ = os.path.splitext(base_name)
         output_dir = os.path.dirname(video_path)
-        audio_path = os.path.join(output_dir, f"{file_name}_{uuid.uuid4().hex[:8]}.{output_format}")
+        audio_path = os.path.join(output_dir, f"{file_name}_audio_{uuid.uuid4().hex[:8]}.{output_format}")
         
         logger.info(f"استخراج صدا از {video_path} به {audio_path}")
         
@@ -66,6 +66,7 @@ def extract_audio(video_path: str, output_format: str = 'mp3', bitrate: str = '1
         ]
         
         # اجرای FFmpeg
+        logger.info(f"اجرای دستور FFmpeg: {' '.join(cmd)}")
         result = subprocess.run(
             cmd,
             stdout=subprocess.PIPE,
@@ -75,8 +76,8 @@ def extract_audio(video_path: str, output_format: str = 'mp3', bitrate: str = '1
         
         if result.returncode != 0:
             logger.error(f"خطا در استخراج صدا: {result.stderr}")
-            logger.debug(f"خروجی FFmpeg: {result.stdout}")
-            return None
+            # تلاش با روش دوم
+            return extract_audio_with_ytdlp(video_path, output_format, bitrate)
             
         # بررسی فایل خروجی
         if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
@@ -84,10 +85,102 @@ def extract_audio(video_path: str, output_format: str = 'mp3', bitrate: str = '1
             return audio_path
         else:
             logger.error(f"فایل صوتی ایجاد نشد یا خالی است: {audio_path}")
+            # تلاش با روش دوم
+            return extract_audio_with_ytdlp(video_path, output_format, bitrate)
+            
+    except Exception as e:
+        logger.error(f"خطا در استخراج صدا: {str(e)}")
+        # تلاش با روش دوم
+        return extract_audio_with_ytdlp(video_path, output_format, bitrate)
+
+def extract_audio_with_ytdlp(video_path: str, output_format: str = 'mp3', bitrate: str = '192k') -> Optional[str]:
+    """
+    استخراج صدا از فایل ویدیویی با استفاده از yt-dlp
+    
+    Args:
+        video_path: مسیر فایل ویدیویی
+        output_format: فرمت خروجی صدا (mp3, m4a, wav)
+        bitrate: نرخ بیت خروجی
+        
+    Returns:
+        مسیر فایل صوتی ایجاد شده یا None در صورت خطا
+    """
+    try:
+        # ایجاد مسیر خروجی
+        base_name = os.path.basename(video_path)
+        file_name, _ = os.path.splitext(base_name)
+        output_dir = os.path.dirname(video_path)
+        temp_output = os.path.join(output_dir, f"{file_name}_audio_{uuid.uuid4().hex[:8]}")
+        
+        logger.info(f"استخراج صدا با yt-dlp از {video_path} به {temp_output}")
+        
+        try:
+            import yt_dlp
+            
+            # تنظیمات yt-dlp
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': output_format,
+                    'preferredquality': bitrate.replace('k', ''),
+                }],
+                'outtmpl': temp_output,
+                'quiet': True,
+                'noplaylist': True,
+            }
+            
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([video_path])
+            
+            # بررسی فایل خروجی
+            audio_path = f"{temp_output}.{output_format}"
+            if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+                logger.info(f"استخراج صدا با yt-dlp با موفقیت انجام شد: {audio_path}")
+                return audio_path
+            else:
+                logger.error(f"فایل صوتی با yt-dlp ایجاد نشد یا خالی است")
+        
+        except ImportError:
+            logger.warning("yt-dlp یافت نشد، تلاش با FFmpeg...")
+        
+        # اگر yt-dlp نصب نبود یا استخراج با آن ناموفق بود، از FFmpeg استفاده می‌کنیم
+        audio_path = os.path.join(output_dir, f"{file_name}_audio_{uuid.uuid4().hex[:8]}.{output_format}")
+        
+        # آماده‌سازی دستور FFmpeg
+        cmd = [
+            'ffmpeg',
+            '-i', video_path,
+            '-vn',  # بدون ویدیو
+            '-acodec', get_codec_for_format(output_format),
+            '-ab', bitrate,
+            '-ar', DEFAULT_AUDIO_SAMPLE_RATE,
+            '-ac', DEFAULT_AUDIO_CHANNELS,
+            '-y',  # جایگزینی فایل موجود
+            audio_path
+        ]
+        
+        logger.info(f"استخراج صدا با FFmpeg: {' '.join(cmd)}")
+        
+        # اجرای FFmpeg
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        if result.returncode == 0 and os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+            logger.info(f"استخراج صدا با FFmpeg موفق: {audio_path}")
+            return audio_path
+        else:
+            logger.error(f"استخراج صدا با FFmpeg ناموفق: {result.stderr}")
             return None
             
     except Exception as e:
         logger.error(f"خطا در استخراج صدا: {str(e)}")
+        import traceback
+        logger.error(f"جزئیات خطا: {traceback.format_exc()}")
         return None
         
 def get_codec_for_format(format: str) -> str:
@@ -122,6 +215,8 @@ def is_video_file(file_path: str) -> bool:
     Returns:
         True اگر فایل ویدیویی باشد، در غیر این صورت False
     """
+    if not file_path:
+        return False
     video_extensions = ('.mp4', '.mkv', '.avi', '.mov', '.flv', '.webm')
     return file_path.lower().endswith(video_extensions)
     
@@ -135,6 +230,8 @@ def is_audio_file(file_path: str) -> bool:
     Returns:
         True اگر فایل صوتی باشد، در غیر این صورت False
     """
+    if not file_path:
+        return False
     audio_extensions = ('.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg', '.opus')
     return file_path.lower().endswith(audio_extensions)
     
@@ -159,7 +256,7 @@ def convert_audio_format(audio_path: str, output_format: str = 'mp3', bitrate: s
         base_name = os.path.basename(audio_path)
         file_name, _ = os.path.splitext(base_name)
         output_dir = os.path.dirname(audio_path)
-        output_path = os.path.join(output_dir, f"{file_name}_{uuid.uuid4().hex[:8]}.{output_format}")
+        output_path = os.path.join(output_dir, f"{file_name}_converted_{uuid.uuid4().hex[:8]}.{output_format}")
         
         logger.info(f"تبدیل فرمت صدا از {audio_path} به {output_path}")
         
@@ -265,26 +362,21 @@ def get_audio_info(audio_path: str) -> Optional[dict]:
         logger.error(f"خطا در دریافت اطلاعات صدا: {str(e)}")
         return None
 
-def create_audio_extractor_module():
-    """
-    ایجاد ماژول audio_extractor.py برای سازگاری با نسخه‌های قبلی
-    """
-    try:
-        module_dir = os.path.dirname(os.path.abspath(__file__))
-        extractor_dir = os.path.join(module_dir, "audio_processing")
-        
-        # ایجاد دایرکتوری اگر وجود ندارد
-        os.makedirs(extractor_dir, exist_ok=True)
-        
-        # ایجاد فایل __init__.py
-        init_path = os.path.join(extractor_dir, "__init__.py")
-        with open(init_path, "w") as f:
-            f.write('"""ماژول پردازش صدا برای ربات تلگرام"""\n')
-        
-        # ایجاد فایل audio_extractor.py
-        extractor_path = os.path.join(extractor_dir, "audio_extractor.py")
-        with open(extractor_path, "w") as f:
-            f.write('''#!/usr/bin/env python3
+# ماژول را در سطح فایل تعریف می‌کنیم
+if not os.path.exists('audio_processing'):
+    os.makedirs('audio_processing', exist_ok=True)
+
+# ایجاد فایل __init__.py
+init_path = os.path.join('audio_processing', "__init__.py")
+if not os.path.exists(init_path):
+    with open(init_path, "w") as f:
+        f.write('"""ماژول پردازش صدا برای ربات تلگرام"""\n\nfrom audio_processing import extract_audio, is_video_file, is_audio_file\n\n__all__ = ["extract_audio", "is_video_file", "is_audio_file"]')
+
+# ایجاد فایل audio_extractor.py
+extractor_path = os.path.join('audio_processing', "audio_extractor.py")
+if not os.path.exists(extractor_path):
+    with open(extractor_path, "w") as f:
+        f.write('''#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
@@ -293,10 +385,16 @@ def create_audio_extractor_module():
 این ماژول تابع استخراج صدا از فایل‌های ویدیویی را ارائه می‌دهد.
 """
 
+import os
+import logging
+from typing import Optional
 from audio_processing import extract_audio as _extract_audio
 
-# تابعی که همان تابع اصلی را فراخوانی می‌کند
-def extract_audio(video_path, output_format='mp3', bitrate='192k'):
+# راه‌اندازی لاگر
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+def extract_audio(video_path: str, output_format: str = 'mp3', bitrate: str = '192k') -> Optional[str]:
     """
     استخراج صدا از فایل ویدیویی
     
@@ -308,19 +406,13 @@ def extract_audio(video_path, output_format='mp3', bitrate='192k'):
     Returns:
         مسیر فایل صوتی ایجاد شده یا None در صورت خطا
     """
+    logger.info(f"فراخوانی استخراج صدا با ماژول audio_extractor برای فایل: {video_path}")
     return _extract_audio(video_path, output_format, bitrate)
 ''')
-        
-        logger.info(f"ماژول audio_extractor با موفقیت ایجاد شد: {extractor_path}")
-        return True
-        
-    except Exception as e:
-        logger.error(f"خطا در ایجاد ماژول audio_extractor: {str(e)}")
-        return False
+    
+    logger.info(f"ماژول audio_extractor با موفقیت ایجاد شد: {extractor_path}")
 
-# اجرای تابع ایجاد ماژول
-create_audio_extractor_module()
-
+# آزمایش استخراج صدا
 if __name__ == "__main__":
     print("ماژول audio_processing بارگذاری شد.")
     print("برای استفاده از این ماژول، آن را import کنید.")

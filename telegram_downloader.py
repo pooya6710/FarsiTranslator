@@ -1791,11 +1791,81 @@ async def handle_download_option(update: Update, context: ContextTypes.DEFAULT_T
                         audio_path = downloaded_file
                     else:
                         # فایل ویدیویی است، تبدیل به صوت کن
-                        from audio_processing.audio_extractor import extract_audio
                         logger.info(f"تبدیل ویدیو به صوت: {downloaded_file}")
-                        audio_path = extract_audio(downloaded_file, 'mp3', '192k')
-                        if not audio_path:
-                            logger.error("خطا در تبدیل ویدیو به صوت")
+                        
+                        # روش 1: استفاده از ماژول audio_processing
+                        audio_path = None
+                        try:
+                            # تلاش اول با ماژول audio_processing
+                            from audio_processing import extract_audio
+                            audio_path = extract_audio(downloaded_file, 'mp3', '192k')
+                            logger.info(f"تبدیل با ماژول audio_processing: {audio_path}")
+                        except ImportError:
+                            logger.warning("ماژول audio_processing یافت نشد، تلاش با audio_extractor")
+                            try:
+                                # تلاش دوم با ماژول audio_extractor
+                                from audio_processing.audio_extractor import extract_audio
+                                audio_path = extract_audio(downloaded_file, 'mp3', '192k')
+                                logger.info(f"تبدیل با ماژول audio_extractor: {audio_path}")
+                            except ImportError:
+                                logger.warning("ماژول audio_extractor نیز یافت نشد")
+                        
+                        # روش 2: استفاده از ماژول telegram_fixes اگر روش 1 موفق نبود
+                        if not audio_path or not os.path.exists(audio_path):
+                            logger.info("تلاش با ماژول telegram_fixes...")
+                            try:
+                                from telegram_fixes import extract_audio_from_video
+                                audio_path = extract_audio_from_video(downloaded_file, 'mp3', '192k')
+                                logger.info(f"تبدیل با ماژول telegram_fixes: {audio_path}")
+                            except (ImportError, Exception) as e:
+                                logger.error(f"خطا در استفاده از ماژول telegram_fixes: {str(e)}")
+                        
+                        # روش 3: استفاده مستقیم از FFmpeg اگر روش‌های قبلی موفق نبودند
+                        if not audio_path or not os.path.exists(audio_path):
+                            logger.info("استفاده مستقیم از FFmpeg...")
+                            
+                            # ایجاد نام فایل خروجی
+                            base_name = os.path.basename(downloaded_file)
+                            file_name, _ = os.path.splitext(base_name)
+                            output_dir = os.path.dirname(downloaded_file)
+                            audio_path = os.path.join(output_dir, f"{file_name}_audio.mp3")
+                            
+                            # آماده‌سازی دستور FFmpeg
+                            cmd = [
+                                'ffmpeg',
+                                '-i', downloaded_file,
+                                '-vn',  # بدون ویدیو
+                                '-acodec', 'libmp3lame',
+                                '-ab', '192k',
+                                '-ar', '44100',
+                                '-y',  # جایگزینی فایل موجود
+                                audio_path
+                            ]
+                            
+                            try:
+                                # اجرای FFmpeg
+                                import subprocess
+                                logger.info(f"اجرای دستور FFmpeg: {' '.join(cmd)}")
+                                result = subprocess.run(
+                                    cmd,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    text=True
+                                )
+                                
+                                if result.returncode != 0:
+                                    logger.error(f"خطا در اجرای FFmpeg: {result.stderr}")
+                                    audio_path = None
+                                elif not os.path.exists(audio_path):
+                                    logger.error(f"فایل صوتی ایجاد نشد: {audio_path}")
+                                    audio_path = None
+                            except Exception as e:
+                                logger.error(f"خطا در اجرای FFmpeg: {str(e)}")
+                                audio_path = None
+                        
+                        # بررسی نتیجه نهایی
+                        if not audio_path or not os.path.exists(audio_path):
+                            logger.error("تمام روش‌های استخراج صدا ناموفق بودند")
                             await query.edit_message_text(ERROR_MESSAGES["download_failed"])
                             return
                     
@@ -2243,6 +2313,73 @@ async def download_youtube_with_option(update: Update, context: ContextTypes.DEF
             downloaded_file = await download_with_quality(url, quality, is_audio, "youtube")
             
             if downloaded_file and os.path.exists(downloaded_file):
+                # بررسی اگر درخواست صوت بوده ولی فایل ویدیویی دانلود شده
+                if is_audio and not downloaded_file.lower().endswith(('.mp3', '.m4a', '.aac', '.wav')):
+                    logger.info(f"فایل دانلود شده ویدیویی است اما درخواست صوتی بوده. تلاش برای استخراج صدا...")
+                    
+                    # روش 1: تلاش با ماژول audio_processing
+                    audio_path = None
+                    try:
+                        from audio_processing import extract_audio
+                        audio_path = extract_audio(downloaded_file, 'mp3', '192k')
+                        logger.info(f"تبدیل با ماژول audio_processing: {audio_path}")
+                    except ImportError:
+                        logger.warning("ماژول audio_processing یافت نشد")
+                    
+                    # روش 2: تلاش با telegram_fixes
+                    if not audio_path or not os.path.exists(audio_path):
+                        try:
+                            from telegram_fixes import extract_audio_from_video
+                            audio_path = extract_audio_from_video(downloaded_file, 'mp3', '192k')
+                            logger.info(f"تبدیل با ماژول telegram_fixes: {audio_path}")
+                        except (ImportError, Exception) as e:
+                            logger.error(f"خطا در استفاده از تابع extract_audio_from_video: {e}")
+                    
+                    # روش 3: استفاده مستقیم از FFmpeg
+                    if not audio_path or not os.path.exists(audio_path):
+                        logger.info("استفاده مستقیم از FFmpeg...")
+                        try:
+                            import subprocess
+                            import uuid
+                            
+                            base_name = os.path.basename(downloaded_file)
+                            file_name, _ = os.path.splitext(base_name)
+                            output_dir = os.path.dirname(downloaded_file)
+                            audio_path = os.path.join(output_dir, f"{file_name}_audio_{uuid.uuid4().hex[:8]}.mp3")
+                            
+                            cmd = [
+                                'ffmpeg',
+                                '-i', downloaded_file,
+                                '-vn',  # بدون ویدیو
+                                '-acodec', 'libmp3lame',
+                                '-ab', '192k',
+                                '-ar', '44100',
+                                '-ac', '2',
+                                '-y',  # جایگزینی فایل موجود
+                                audio_path
+                            ]
+                            
+                            logger.info(f"اجرای دستور FFmpeg: {' '.join(cmd)}")
+                            result = subprocess.run(
+                                cmd,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                text=True
+                            )
+                            
+                            if result.returncode != 0:
+                                logger.error(f"خطا در استخراج صدا با FFmpeg: {result.stderr}")
+                            elif os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+                                logger.info(f"استخراج صدا با FFmpeg موفق: {audio_path}")
+                                downloaded_file = audio_path  # جایگزینی فایل ویدیویی با فایل صوتی
+                            else:
+                                logger.error(f"فایل صوتی ایجاد نشد یا خالی است: {audio_path}")
+                        except Exception as e:
+                            logger.error(f"خطا در اجرای FFmpeg: {e}")
+                    else:
+                        # اگر استخراج صدا موفق بود، فایل را جایگزین می‌کنیم
+                        downloaded_file = audio_path
+                
                 # افزودن به کش
                 cache_key = url + ("_audio" if is_audio else "")
                 add_to_cache(cache_key, downloaded_file)

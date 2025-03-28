@@ -146,6 +146,7 @@ def get_format_spec_for_quality(quality: str) -> str:
     else:
         height = VIDEO_QUALITY_MAP.get(quality, {}).get('height', 0)
         if height:
+            # برای یوتیوب، ما فرمت دقیق‌تری با اولویت‌های مشخص استفاده می‌کنیم
             return f'bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/best[height<={height}][ext=mp4]/best[height<={height}]'
         else:
             return 'best[ext=mp4]/best'
@@ -174,39 +175,32 @@ async def download_with_quality(url: str, quality: str = 'best', is_audio: bool 
         # ایجاد مسیر خروجی منحصر به فرد
         download_id = uuid.uuid4().hex[:8]
         
-        # انتخاب تنظیمات مناسب برای منبع
-        if source_type == 'youtube':
-            # دانلود از یوتیوب
-            if is_audio:
-                ydl_opts.update({
-                    'format': 'bestaudio[ext=m4a]/bestaudio',
-                    'postprocessors': [{
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': 'mp3',
-                        'preferredquality': '192',
-                    }],
-                })
-                output_template = os.path.join(DEFAULT_DOWNLOAD_DIR, f'youtube_audio_{download_id}.%(ext)s')
-            else:
+        # اگر درخواست صوتی است
+        if is_audio:
+            logger.info(f"درخواست دانلود صوتی از {source_type}: {url}")
+            ydl_opts.update({
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+            })
+            output_template = os.path.join(DEFAULT_DOWNLOAD_DIR, f'{source_type}_audio_{download_id}.%(ext)s')
+        else:
+            # انتخاب تنظیمات مناسب برای منبع
+            if source_type == 'youtube':
+                # دانلود از یوتیوب
                 format_spec = get_format_spec_for_quality(quality)
+                logger.info(f"یوتیوب - انتخاب کیفیت {quality} با فرمت: {format_spec}")
                 ydl_opts.update({
                     'format': format_spec,
                 })
                 output_template = os.path.join(DEFAULT_DOWNLOAD_DIR, f'youtube_{quality}_{download_id}.%(ext)s')
-        
-        elif source_type == 'instagram':
-            # دانلود از اینستاگرام
-            if is_audio:
-                ydl_opts.update({
-                    'format': 'bestaudio[ext=m4a]/bestaudio',
-                    'postprocessors': [{
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': 'mp3',
-                        'preferredquality': '192',
-                    }],
-                })
-                output_template = os.path.join(DEFAULT_DOWNLOAD_DIR, f'instagram_audio_{download_id}.%(ext)s')
-            else:
+            
+            elif source_type == 'instagram':
+                # دانلود از اینستاگرام
+                # اینستاگرام کیفیت‌های کمتری ارائه می‌دهد
                 if quality == 'best':
                     format_spec = 'best[ext=mp4]/best'
                 else:
@@ -216,40 +210,48 @@ async def download_with_quality(url: str, quality: str = 'best', is_audio: bool 
                     else:
                         format_spec = 'best[ext=mp4]/best'
                 
+                logger.info(f"اینستاگرام - انتخاب کیفیت {quality} با فرمت: {format_spec}")
                 ydl_opts.update({
                     'format': format_spec,
                 })
                 output_template = os.path.join(DEFAULT_DOWNLOAD_DIR, f'instagram_{quality}_{download_id}.%(ext)s')
-        else:
-            # منبع نامشخص
-            logger.error(f"نوع منبع غیرمجاز: {source_type}")
-            return None
-            
+            else:
+                # منبع نامشخص
+                logger.error(f"نوع منبع غیرمجاز: {source_type}")
+                return None
+                
         # تنظیم قالب نام فایل خروجی
         ydl_opts['outtmpl'] = output_template
         
         logger.info(f"دانلود از {source_type} با کیفیت {quality}, صوتی: {is_audio}")
-        logger.debug(f"تنظیمات دانلود: {ydl_opts}")
+        logger.info(f"تنظیمات دانلود: {ydl_opts}")
         
         # اجرای دستور دانلود در thread pool
         loop = asyncio.get_event_loop()
         downloaded_files = []
         
         def download_with_ytdlp():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                if info:
-                    if 'entries' in info:
-                        # پلی‌لیست
-                        entries = list(info['entries'])
-                        for entry in entries:
-                            if 'requested_downloads' in entry:
-                                for download in entry['requested_downloads']:
-                                    downloaded_files.append(download['filepath'])
-                    elif 'requested_downloads' in info:
-                        # فایل منفرد
-                        for download in info['requested_downloads']:
-                            downloaded_files.append(download['filepath'])
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    if info:
+                        if 'entries' in info:
+                            # پلی‌لیست
+                            entries = list(info['entries'])
+                            logger.info(f"تعداد فایل‌های پلی‌لیست: {len(entries)}")
+                            for entry in entries:
+                                if 'requested_downloads' in entry:
+                                    for download in entry['requested_downloads']:
+                                        downloaded_files.append(download['filepath'])
+                        elif 'requested_downloads' in info:
+                            # فایل منفرد
+                            for download in info['requested_downloads']:
+                                downloaded_files.append(download['filepath'])
+                                logger.info(f"فایل دانلود شده: {download['filepath']}, فرمت: {download.get('format', 'نامشخص')}")
+            except Exception as e:
+                logger.error(f"خطا در دانلود با yt-dlp: {str(e)}")
+                import traceback
+                logger.error(f"جزئیات خطا: {traceback.format_exc()}")
             return downloaded_files
             
         result = await loop.run_in_executor(None, download_with_ytdlp)
@@ -260,23 +262,63 @@ async def download_with_quality(url: str, quality: str = 'best', is_audio: bool 
             return None
             
         downloaded_file = downloaded_files[0]
+        logger.info(f"فایل دانلود شده: {downloaded_file}")
         
         # اگر فایل ویدیویی است و کاربر صدا درخواست کرده، استخراج صدا
         if is_audio and is_video_file(downloaded_file):
+            logger.info(f"استخراج صدا از ویدیو: {downloaded_file}")
+            # استفاده از yt-dlp برای استخراج صدا
             audio_file = extract_audio(downloaded_file, 'mp3', '192k')
             if audio_file:
                 logger.info(f"فایل صوتی با موفقیت استخراج شد: {audio_file}")
                 return audio_file
             else:
-                logger.error("استخراج صدا ناموفق بود، ارسال فایل ویدیویی")
+                logger.error("استخراج صدا ناموفق بود، تلاش با روش دوم...")
+                # تلاش با FFmpeg مستقیم
+                base_name = os.path.basename(downloaded_file)
+                file_name, _ = os.path.splitext(base_name)
+                output_dir = os.path.dirname(downloaded_file)
+                audio_path = os.path.join(output_dir, f"{file_name}_audio.mp3")
+                
+                cmd = [
+                    'ffmpeg',
+                    '-i', downloaded_file,
+                    '-vn',  # بدون ویدیو
+                    '-acodec', 'libmp3lame',
+                    '-ab', '192k',
+                    '-ar', '44100',
+                    '-y',
+                    audio_path
+                ]
+                
+                try:
+                    result = subprocess.run(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True
+                    )
+                    
+                    if result.returncode == 0 and os.path.exists(audio_path):
+                        logger.info(f"استخراج صدا با FFmpeg موفق: {audio_path}")
+                        return audio_path
+                except Exception as e:
+                    logger.error(f"خطا در استخراج صدا با FFmpeg: {e}")
+                
+                logger.warning("استخراج صدا ناموفق بود، ارسال فایل ویدیویی به جای صدا")
                 return downloaded_file
+        
+        # بررسی حجم فایل
+        if os.path.exists(downloaded_file):
+            file_size = os.path.getsize(downloaded_file) / (1024 * 1024)  # MB
+            logger.info(f"حجم فایل دانلود شده: {file_size:.2f} MB")
         
         return downloaded_file
         
     except Exception as e:
         logger.error(f"خطا در دانلود با کیفیت: {str(e)}")
         import traceback
-        logger.debug(f"Traceback: {traceback.format_exc()}")
+        logger.error(f"جزئیات خطا: {traceback.format_exc()}")
         return None
 
 def extract_audio_from_video(video_path: str, output_format: str = 'mp3', bitrate: str = '192k') -> Optional[str]:
