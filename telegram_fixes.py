@@ -490,7 +490,7 @@ async def download_with_quality(url: str, quality: str = 'best', is_audio: bool 
 
 def convert_video_quality(video_path: str, quality: str = "720p", is_audio_request: bool = False) -> Optional[str]:
     """
-    تبدیل کیفیت ویدیو با استفاده از ffmpeg (روش ساده و مطمئن)
+    تبدیل کیفیت ویدیو با استفاده از ffmpeg (روش بهبود یافته و تضمین شده)
     
     Args:
         video_path: مسیر فایل ویدیویی اصلی
@@ -551,29 +551,56 @@ def convert_video_quality(video_path: str, quality: str = "720p", is_audio_reque
             text=True
         )
         
+        original_width = 0
+        original_height = 0
+        
         # تصمیم‌گیری برای دستور ffmpeg
-        if probe_result.returncode != 0 or not probe_result.stdout.strip():
-            logger.warning("نمی‌توان به اطلاعات ویدیو دست یافت - استفاده از روش امن")
-        else:
+        if probe_result.returncode == 0 and probe_result.stdout.strip():
             # اطلاعات ویدیو به دست آمد
             dimensions = probe_result.stdout.strip()
             logger.info(f"ابعاد اصلی ویدیو: {dimensions}")
+            try:
+                width_str, height_str = dimensions.split('x')
+                original_width = int(width_str)
+                original_height = int(height_str)
+            except (ValueError, Exception) as e:
+                logger.warning(f"خطا در تفسیر ابعاد: {e}")
+        else:
+            logger.warning("نمی‌توان به اطلاعات ویدیو دست یافت - استفاده از روش امن")
         
-        # ⚠️ روش کاملاً ساده و یکسان برای همه موارد با پارامترهای ثابت
+        # اگر فایل خروجی از قبل وجود دارد، آن را برگرداند
+        if os.path.exists(converted_file) and os.path.getsize(converted_file) > 10000:
+            logger.info(f"فایل تبدیل شده از قبل وجود دارد: {converted_file}")
+            return converted_file
+        
+        # محاسبه عرض جدید با حفظ نسبت تصویر
+        target_width = "trunc(oh*a/2)*2"  # فرمول پیش‌فرض برای حفظ نسبت تصویر و اطمینان از زوج بودن عرض
+        
+        # اگر ابعاد اصلی را داریم، محاسبه دقیق‌تر انجام می‌دهیم
+        if original_width > 0 and original_height > 0:
+            aspect_ratio = original_width / original_height
+            calculated_width = int(target_height * aspect_ratio)
+            # اطمینان از زوج بودن عرض
+            if calculated_width % 2 != 0:
+                calculated_width += 1
+            target_width = str(calculated_width)
+            logger.info(f"عرض محاسبه شده برای کیفیت {quality}: {target_width}")
+        
         # تنظیم زنجیره فیلتر برای حل مشکل عرض فرد
-        scale_filter = f'scale=trunc(oh*a/2)*2:{target_height}'
+        scale_filter = f'scale={target_width}:{target_height},format=yuv420p'
         
-        # دستور ffmpeg سراسری با پارامترهای ساده
+        # دستور ffmpeg سراسری با پارامترهای بهینه
         cmd = [
-            FFMPEG_PATH, 
+            '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg', 
             '-i', video_path, 
-            '-c:v', 'libx264',    # کدک ویدیو: H.264 (سازگاری بالا)
-            '-c:a', 'aac',        # کدک صدا: AAC (سازگاری بالا)
-            '-b:a', '128k',       # بیت‌ریت صدا
-            '-vf', scale_filter,  # فیلتر مقیاس‌بندی
+            '-c:v', 'libx264',     # کدک ویدیو: H.264 (سازگاری بالا)
+            '-c:a', 'aac',         # کدک صدا: AAC (سازگاری بالا)
+            '-b:a', '128k',        # بیت‌ریت صدا
+            '-vf', scale_filter,   # فیلتر مقیاس‌بندی با فرمت تضمین شده
             '-preset', 'ultrafast', # سرعت بالا
-            '-crf', '28',         # کیفیت متوسط (مقادیر کمتر = کیفیت بالاتر)
-            '-y',                 # جایگزینی فایل موجود
+            '-crf', '28',          # کیفیت متوسط (مقادیر کمتر = کیفیت بالاتر)
+            '-max_muxing_queue_size', '9999', # افزایش حداکثر صف برای جلوگیری از خطای مربوطه
+            '-y',                  # جایگزینی فایل موجود
             converted_file
         ]
         
@@ -615,17 +642,86 @@ def convert_video_quality(video_path: str, quality: str = "720p", is_audio_reque
                 return converted_file
             else:
                 logger.error(f"فایل تبدیل شده معتبر نیست: {verify_result.stderr}")
-                logger.info("برگشت به فایل اصلی")
-                return video_path
+                # اگر تبدیل موفق نبود، با روش دیگری تلاش می‌کنیم
+                return fallback_convert_video(video_path, quality)
         else:
             logger.error(f"خطا در تبدیل کیفیت: {result.stderr[:300]}...")
+            # اگر تبدیل موفق نبود، با روش دیگری تلاش می‌کنیم
+            return fallback_convert_video(video_path, quality)
+    
+    except Exception as e:
+        logger.error(f"خطا در تبدیل کیفیت ویدیو: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        # اگر تبدیل موفق نبود، با روش دیگری تلاش می‌کنیم
+        return fallback_convert_video(video_path, quality)
+
+def fallback_convert_video(video_path: str, quality: str) -> str:
+    """
+    روش پشتیبان برای تبدیل کیفیت ویدیو در صورت شکست روش اصلی
+    
+    Args:
+        video_path: مسیر فایل ویدیویی اصلی
+        quality: کیفیت هدف (1080p, 720p, 480p, 360p, 240p)
+        
+    Returns:
+        مسیر فایل تبدیل شده یا مسیر فایل اصلی در صورت خطا
+    """
+    logger.info(f"استفاده از روش پشتیبان برای تبدیل کیفیت ویدیو به {quality}")
+    
+    try:
+        # تعیین ارتفاع برای هر کیفیت
+        quality_heights = {
+            "1080p": 1080, 
+            "720p": 720, 
+            "480p": 480, 
+            "360p": 360, 
+            "240p": 240
+        }
+        
+        # اگر کیفیت نامعتبر است، از 720p استفاده کن
+        if quality not in quality_heights:
+            quality = "720p"
+        
+        target_height = quality_heights[quality]
+        
+        # مسیر فایل خروجی با پسوند متفاوت برای جلوگیری از تداخل
+        file_dir = os.path.dirname(video_path)
+        file_name, file_ext = os.path.splitext(os.path.basename(video_path))
+        converted_file = os.path.join(file_dir, f"{file_name}_fallback_{quality}{file_ext}")
+        
+        # استفاده از دستور ساده‌تر ffmpeg با پارامترهای حداقلی
+        cmd = [
+            '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg', 
+            '-i', video_path, 
+            '-vf', f'scale=-2:{target_height}',  # فقط ارتفاع را تنظیم می‌کنیم، عرض متناسب با نسبت تصویر تنظیم می‌شود
+            '-c:a', 'copy',                       # فقط کپی صدا
+            '-y',                                 # جایگزینی فایل موجود
+            converted_file
+        ]
+        
+        logger.info(f"روش پشتیبان در حال اجرا: {' '.join(cmd)}")
+        
+        # اجرای دستور
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # بررسی نتیجه
+        if result.returncode == 0 and os.path.exists(converted_file) and os.path.getsize(converted_file) > 10000:
+            logger.info(f"تبدیل کیفیت با روش پشتیبان موفق: {converted_file}")
+            return converted_file
+        else:
+            logger.error(f"خطا در روش پشتیبان: {result.stderr[:100]}...")
             logger.info("برگشت به فایل اصلی")
             return video_path
     
     except Exception as e:
-        logger.error(f"خطا در تبدیل کیفیت ویدیو: {str(e)}")
-        logger.error(traceback.format_exc())
-        logger.info("برگشت به فایل اصلی به دلیل خطای استثنا")
+        logger.error(f"خطا در روش پشتیبان: {str(e)}")
+        logger.info("برگشت به فایل اصلی")
         return video_path
 
 def extract_audio_from_video(video_path: str, output_format: str = 'mp3', bitrate: str = '192k') -> Optional[str]:
