@@ -20,6 +20,10 @@ from typing import Optional, Dict, Tuple, List
 import yt_dlp
 from audio_processing import extract_audio, is_video_file, is_audio_file
 
+# تنظیم مسیر پیشفرض ffmpeg
+FFMPEG_PATH = '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg'
+FFPROBE_PATH = '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffprobe'
+
 # راه‌اندازی لاگر
 logging.basicConfig(
     level=logging.INFO,
@@ -513,6 +517,7 @@ def extract_audio_from_video(video_path: str, output_format: str = 'mp3', bitrat
                     'preferredcodec': output_format,
                     'preferredquality': bitrate.replace('k', ''),
                 }],
+                'ffmpeg_location': '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
                 'quiet': True,
                 'no_warnings': True,
             }

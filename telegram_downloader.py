@@ -1604,17 +1604,7 @@ async def process_instagram_url(update: Update, context: ContextTypes.DEFAULT_TY
             await status_message.edit_text(ERROR_MESSAGES["fetch_options_failed"])
             return
             
-        # افزودن گزینه صوتی به گزینه‌های دانلود اینستاگرام
-        audio_option = {
-            "quality": "audio",
-            "type": "audio",
-            "display_name": "🎵 فقط صدا",
-            "format_note": "audio only",
-            "id": "audio"
-        }
-        
-        # اضافه کردن گزینه صوتی به لیست گزینه‌ها
-        options.append(audio_option)
+        # گزینه صوتی حذف شد
             
         # ذخیره URL در داده‌های کاربر
         user_id = update.effective_user.id
@@ -1801,8 +1791,6 @@ async def process_youtube_url(update: Update, context: ContextTypes.DEFAULT_TYPE
         # افزودن عنوان بخش صدا
         if audio_buttons:
             # دکمه عنوان با callback_data خنثی
-            # اضافه کردن دکمه فقط صدا برای دانلود مستقیم صوتی
-            keyboard.append([InlineKeyboardButton("🎵 دانلود فقط صدا", callback_data=f"dl_yt_audio_{url_id}")])
             # اضافه کردن سایر گزینه‌های صوتی
             keyboard.extend(audio_buttons)
             
@@ -2825,6 +2813,7 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
                     'key': 'FFmpegMetadata',
                     'add_metadata': True,
                 }],
+                'ffmpeg_location': '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
                 'outtmpl': output_path.replace('.mp3', '.%(ext)s'),
                 'quiet': True,
                 'cookiefile': YOUTUBE_COOKIE_FILE,
