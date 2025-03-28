@@ -1004,6 +1004,7 @@ class InstagramDownloader:
                 {"id": "instagram_high", "label": "کیفیت بالا (1080p)", "quality": "best", "type": "video"},
                 {"id": "instagram_medium", "label": "کیفیت متوسط (480p)", "quality": "medium", "type": "video"},
                 {"id": "instagram_low", "label": "کیفیت پایین (240p)", "quality": "low", "type": "video"},
+                {"id": "instagram_audio", "label": "فقط صدا (MP3)", "quality": "audio", "type": "audio"}
             ]
             
             return options
@@ -1224,7 +1225,7 @@ class YouTubeDownloader:
                             "display_name": "کیفیت پایین (360p)",
                             "type": "video",
                             "priority": 4
-                        },
+                        }
                     ]
 
             # مرتب‌سازی گزینه‌ها براساس اولویت
@@ -1486,7 +1487,7 @@ async def process_url(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     url = extract_url(update.message.text)
     
     if not url:
-        await update.message.reply_text(ERROR_MESSAGES["url_not_found"])
+        # اگر لینکی پیدا نشد، هیچ پاسخی ارسال نکن و فقط برگرد
         return
         
     # ارسال پیام در حال پردازش
