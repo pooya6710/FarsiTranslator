@@ -1002,11 +1002,13 @@ class InstagramDownloader:
                 logger.error(f"خطا در استخراج کد کوتاه پست از URL: {url}")
                 return []
                 
-            # گزینه‌های دانلود ثابت برای اینستاگرام
+            # گزینه‌های دانلود ثابت برای اینستاگرام - 5 کیفیت مشخص شده
             options = [
-                {"id": "instagram_high", "label": "کیفیت بالا (1080p)", "quality": "best", "type": "video"},
-                {"id": "instagram_medium", "label": "کیفیت متوسط (480p)", "quality": "medium", "type": "video"},
-                {"id": "instagram_low", "label": "کیفیت پایین (240p)", "quality": "low", "type": "video"},
+                {"id": "instagram_1080p", "label": "کیفیت Full HD (1080p)", "quality": "1080p", "type": "video"},
+                {"id": "instagram_720p", "label": "کیفیت HD (720p)", "quality": "720p", "type": "video"},
+                {"id": "instagram_480p", "label": "کیفیت متوسط (480p)", "quality": "480p", "type": "video"},
+                {"id": "instagram_360p", "label": "کیفیت پایین (360p)", "quality": "360p", "type": "video"},
+                {"id": "instagram_240p", "label": "کیفیت خیلی پایین (240p)", "quality": "240p", "type": "video"},
                 {"id": "instagram_audio", "label": "فقط صدا (MP3)", "quality": "audio", "type": "audio"}
             ]
             
@@ -1168,9 +1170,18 @@ class YouTubeDownloader:
                     }
                 ]
             else:
-                # اگر ویدیو کوتاه است (شورتز)، گزینه‌های کمتری ارائه می‌دهیم
+                # اگر ویدیو کوتاه است (شورتز)، همان 5 کیفیت را ارائه می‌دهیم
                 if is_short:
                     options = [
+                        {
+                            "id": "youtube_1080p", 
+                            "label": "کیفیت Full HD (1080p)", 
+                            "quality": "1080p", 
+                            "format": "best[height<=1080]",
+                            "display_name": "کیفیت Full HD (1080p)",
+                            "type": "video",
+                            "priority": 1
+                        },
                         {
                             "id": "youtube_720p", 
                             "label": "کیفیت HD (720p)", 
@@ -1178,7 +1189,7 @@ class YouTubeDownloader:
                             "format": "best[height<=720]",
                             "display_name": "کیفیت HD (720p)",
                             "type": "video",
-                            "priority": 1
+                            "priority": 2
                         },
                         {
                             "id": "youtube_480p", 
@@ -1187,7 +1198,25 @@ class YouTubeDownloader:
                             "format": "best[height<=480]",
                             "display_name": "کیفیت متوسط (480p)",
                             "type": "video",
-                            "priority": 2
+                            "priority": 3
+                        },
+                        {
+                            "id": "youtube_360p", 
+                            "label": "کیفیت پایین (360p)", 
+                            "quality": "360p", 
+                            "format": "best[height<=360]",
+                            "display_name": "کیفیت پایین (360p)",
+                            "type": "video",
+                            "priority": 4
+                        },
+                        {
+                            "id": "youtube_240p", 
+                            "label": "کیفیت خیلی پایین (240p)", 
+                            "quality": "240p", 
+                            "format": "best[height<=240]",
+                            "display_name": "کیفیت خیلی پایین (240p)",
+                            "type": "video",
+                            "priority": 5
                         },
                         {
                             "id": "youtube_audio", 
@@ -1196,7 +1225,7 @@ class YouTubeDownloader:
                             "format": "bestaudio[ext=m4a]",
                             "display_name": "فقط صدا (MP3)",
                             "type": "audio",
-                            "priority": 5
+                            "priority": 6
                         }
                     ]
                 else:
@@ -1239,13 +1268,22 @@ class YouTubeDownloader:
                             "priority": 4
                         },
                         {
+                            "id": "youtube_240p", 
+                            "label": "کیفیت خیلی پایین (240p)", 
+                            "quality": "240p", 
+                            "format": "best[height<=240]",
+                            "display_name": "کیفیت خیلی پایین (240p)",
+                            "type": "video",
+                            "priority": 5
+                        },
+                        {
                             "id": "youtube_audio", 
                             "label": "فقط صدا (MP3)", 
                             "quality": "audio", 
                             "format": "bestaudio[ext=m4a]",
                             "display_name": "فقط صدا (MP3)",
                             "type": "audio",
-                            "priority": 5
+                            "priority": 6
                         }
                     ]
 
@@ -2345,26 +2383,103 @@ async def download_instagram_with_option(update: Update, context: ContextTypes.D
                 logger.info("دانلود درخواست صوتی اینستاگرام")
             else:
                 await query.edit_message_text(STATUS_MESSAGES["downloading"])
-                
-            # بررسی کش با در نظر گرفتن کیفیت
-            cache_quality = quality if not is_audio else "audio"
-            cached_file = get_from_cache(url, cache_quality)
+            
+            # ابتدا ویدیو را با بهترین کیفیت دانلود می‌کنیم
+            # بررسی کش برای بهترین کیفیت
+            cached_file = get_from_cache(url, "best")
             
             if cached_file and os.path.exists(cached_file):
-                logger.info(f"فایل از کش برگردانده شد (کیفیت {cache_quality}): {cached_file}")
-                downloaded_file = cached_file
+                logger.info(f"فایل با بهترین کیفیت از کش برگردانده شد: {cached_file}")
+                best_quality_file = cached_file
             else:
-                # دانلود با استفاده از ماژول جدید
-                logger.info(f"دانلود اینستاگرام با ماژول بهبود یافته: {quality}, صوتی={is_audio}")
-                downloaded_file = await download_with_quality(url, quality, is_audio, "instagram")
+                # دانلود با بهترین کیفیت
+                logger.info(f"دانلود اینستاگرام با بهترین کیفیت")
+                best_quality_file = await download_with_quality(url, "best", False, "instagram")
                 
-                if downloaded_file and os.path.exists(downloaded_file):
+                if best_quality_file and os.path.exists(best_quality_file):
                     # افزودن به کش با در نظر گرفتن کیفیت
-                    add_to_cache(url, downloaded_file, cache_quality)
-                    logger.info(f"فایل با موفقیت دانلود شد: {downloaded_file}")
+                    add_to_cache(url, best_quality_file, "best")
+                    logger.info(f"فایل با کیفیت بالا با موفقیت دانلود شد: {best_quality_file}")
                 else:
                     logger.error(f"دانلود با ماژول بهبود یافته ناموفق بود")
                     raise Exception("دانلود با ماژول بهبود یافته ناموفق بود")
+            
+            # حالا اگر کیفیت درخواستی "best" نیست یا audio است، فایل را تبدیل می‌کنیم
+            if quality == "best" and not is_audio:
+                # اگر کیفیت درخواستی بهترین است، همان فایل را برمی‌گردانیم
+                downloaded_file = best_quality_file
+                logger.info(f"فایل با کیفیت بالا بدون تغییر برگردانده شد: {downloaded_file}")
+            else:
+                # تبدیل فایل به کیفیت مورد نظر
+                logger.info(f"تبدیل فایل به کیفیت {quality}")
+                
+                # پیام وضعیت جدید
+                await query.edit_message_text(STATUS_MESSAGES["processing"])
+                
+                if is_audio:
+                    # برای صدا از ماژول استخراج صدا استفاده می‌کنیم
+                    logger.info(f"استخراج صدا از ویدیو: {best_quality_file}")
+                    # دریافت تنظیمات کیفیت صدا از نقشه کیفیت در telegram_fixes.py
+                    quality_settings = VIDEO_QUALITY_MAP.get('audio', {})
+                    audio_format = quality_settings.get('audio_format', 'mp3')
+                    audio_quality = quality_settings.get('audio_quality', '192k')
+                    
+                    # استخراج صدا
+                    audio_file = extract_audio(best_quality_file, audio_format, audio_quality)
+                    if audio_file:
+                        downloaded_file = audio_file
+                        logger.info(f"صدا با موفقیت استخراج شد: {downloaded_file}")
+                        # افزودن به کش صوتی
+                        add_to_cache(url, downloaded_file, "audio")
+                    else:
+                        # خطا در استخراج صدا
+                        logger.error("استخراج صدا ناموفق بود")
+                        # برگرداندن فایل اصلی
+                        downloaded_file = best_quality_file
+                else:
+                    # برای ویدیو از ffmpeg برای تبدیل کیفیت استفاده می‌کنیم
+                    # دریافت تنظیمات ffmpeg از نقشه کیفیت
+                    quality_settings = VIDEO_QUALITY_MAP.get(quality, {})
+                    ffmpeg_options = quality_settings.get('ffmpeg_options', [])
+                    
+                    if ffmpeg_options:
+                        # ایجاد فایل جدید با نام مناسب
+                        file_dir = os.path.dirname(best_quality_file)
+                        file_name, file_ext = os.path.splitext(os.path.basename(best_quality_file))
+                        converted_file = os.path.join(file_dir, f"{file_name}_{quality}{file_ext}")
+                        
+                        # ساخت دستور ffmpeg
+                        cmd = ['ffmpeg', '-i', best_quality_file, '-y']
+                        cmd.extend(ffmpeg_options)
+                        cmd.append(converted_file)
+                        
+                        try:
+                            logger.info(f"اجرای دستور ffmpeg برای تبدیل کیفیت: {cmd}")
+                            result = subprocess.run(
+                                cmd,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                text=True
+                            )
+                            
+                            if result.returncode == 0 and os.path.exists(converted_file):
+                                downloaded_file = converted_file
+                                logger.info(f"فایل با موفقیت به کیفیت {quality} تبدیل شد: {downloaded_file}")
+                                # افزودن به کش با کیفیت جدید
+                                add_to_cache(url, downloaded_file, quality)
+                            else:
+                                logger.error(f"تبدیل کیفیت ناموفق بود. کد بازگشت: {result.returncode}")
+                                logger.error(f"خروجی خطا: {result.stderr}")
+                                # برگرداندن فایل اصلی
+                                downloaded_file = best_quality_file
+                        except Exception as e:
+                            logger.error(f"خطا در اجرای ffmpeg: {str(e)}")
+                            # برگرداندن فایل اصلی
+                            downloaded_file = best_quality_file
+                    else:
+                        # اگر تنظیمات ffmpeg برای این کیفیت وجود نداشت، فایل اصلی را برمی‌گردانیم
+                        logger.warning(f"تنظیمات ffmpeg برای کیفیت {quality} یافت نشد، فایل اصلی برگردانده می‌شود")
+                        downloaded_file = best_quality_file
             
         except ImportError:
             logger.info("ماژول بهبود یافته در دسترس نیست، استفاده از روش قدیمی")
@@ -2535,20 +2650,120 @@ async def download_youtube_with_option(update: Update, context: ContextTypes.DEF
                 
             logger.info(f"کیفیت انتخابی برای دانلود: {quality}, صوتی: {is_audio}")
             
-            # بررسی کش با در نظر گرفتن کیفیت
-            cache_quality = quality if not is_audio else "audio"
-            cached_file = get_from_cache(url, cache_quality)
+            # ابتدا ویدیو را با بهترین کیفیت دانلود می‌کنیم
+            # بررسی کش برای بهترین کیفیت
+            cached_file = get_from_cache(url, "best")
             
             if cached_file and os.path.exists(cached_file):
-                logger.info(f"فایل از کش برگردانده شد (کیفیت {cache_quality}): {cached_file}")
-                downloaded_file = cached_file
+                logger.info(f"فایل با بهترین کیفیت از کش برگردانده شد: {cached_file}")
+                best_quality_file = cached_file
             else:
-                # دانلود با استفاده از ماژول جدید
-                downloaded_file = await download_with_quality(url, quality, is_audio, "youtube")
+                # دانلود با بهترین کیفیت
+                logger.info(f"دانلود یوتیوب با بهترین کیفیت")
+                best_quality_file = await download_with_quality(url, "best", False, "youtube")
                 
-                if downloaded_file and os.path.exists(downloaded_file):
+                if best_quality_file and os.path.exists(best_quality_file):
                     # افزودن به کش با در نظر گرفتن کیفیت
-                    add_to_cache(url, downloaded_file, cache_quality)
+                    add_to_cache(url, best_quality_file, "best")
+                    logger.info(f"فایل با کیفیت بالا با موفقیت دانلود شد: {best_quality_file}")
+                else:
+                    logger.error(f"دانلود با ماژول بهبود یافته ناموفق بود")
+                    raise Exception("دانلود با ماژول بهبود یافته ناموفق بود")
+            
+            # حالا اگر کیفیت درخواستی "best" نیست یا audio است، فایل را تبدیل می‌کنیم
+            if quality == "best" and not is_audio:
+                # اگر کیفیت درخواستی بهترین است، همان فایل را برمی‌گردانیم
+                downloaded_file = best_quality_file
+                logger.info(f"فایل با کیفیت بالا بدون تغییر برگردانده شد: {downloaded_file}")
+            else:
+                # تبدیل فایل به کیفیت مورد نظر
+                logger.info(f"تبدیل فایل به کیفیت {quality}")
+                
+                # پیام وضعیت جدید
+                await query.edit_message_text(STATUS_MESSAGES["processing"])
+                
+                if is_audio:
+                    # پیام وضعیت جدید
+                    await query.edit_message_text(STATUS_MESSAGES["processing_audio"])
+                    
+                    # روش 1: تلاش با ماژول audio_processing
+                    audio_path = None
+                    try:
+                        from audio_processing import extract_audio
+                        audio_path = extract_audio(best_quality_file, 'mp3', '192k')
+                        logger.info(f"تبدیل با ماژول audio_processing: {audio_path}")
+                    except ImportError:
+                        logger.warning("ماژول audio_processing یافت نشد")
+                    
+                    # روش 2: تلاش با telegram_fixes
+                    if not audio_path or not os.path.exists(audio_path):
+                        try:
+                            from telegram_fixes import extract_audio_from_video
+                            audio_path = extract_audio_from_video(best_quality_file, 'mp3', '192k')
+                            logger.info(f"تبدیل با ماژول telegram_fixes: {audio_path}")
+                        except (ImportError, Exception) as e:
+                            logger.error(f"خطا در استفاده از تابع extract_audio_from_video: {e}")
+                    
+                    if audio_path and os.path.exists(audio_path):
+                        downloaded_file = audio_path
+                        logger.info(f"صدا با موفقیت استخراج شد: {downloaded_file}")
+                        # افزودن به کش صوتی
+                        add_to_cache(url, downloaded_file, "audio")
+                    else:
+                        # خطا در استخراج صدا
+                        logger.error("استخراج صدا ناموفق بود")
+                        # برگرداندن فایل اصلی
+                        downloaded_file = best_quality_file
+                else:
+                    # برای ویدیو از ffmpeg برای تبدیل کیفیت استفاده می‌کنیم
+                    # دریافت تنظیمات ffmpeg از نقشه کیفیت
+                    try:
+                        from telegram_fixes import VIDEO_QUALITY_MAP
+                        quality_settings = VIDEO_QUALITY_MAP.get(quality, {})
+                        ffmpeg_options = quality_settings.get('ffmpeg_options', [])
+                    except ImportError:
+                        logger.warning("واردسازی VIDEO_QUALITY_MAP از telegram_fixes ناموفق بود")
+                        # تنظیمات پیش‌فرض
+                        ffmpeg_options = ['-vf', f'scale=-2:{max(240, int(quality[:-1]) if quality.endswith("p") else 360)}', '-b:v', '800k']
+                    
+                    if ffmpeg_options:
+                        # ایجاد فایل جدید با نام مناسب
+                        file_dir = os.path.dirname(best_quality_file)
+                        file_name, file_ext = os.path.splitext(os.path.basename(best_quality_file))
+                        converted_file = os.path.join(file_dir, f"{file_name}_{quality}{file_ext}")
+                        
+                        # ساخت دستور ffmpeg
+                        cmd = ['ffmpeg', '-i', best_quality_file, '-y']
+                        cmd.extend(ffmpeg_options)
+                        cmd.append(converted_file)
+                        
+                        try:
+                            logger.info(f"اجرای دستور ffmpeg برای تبدیل کیفیت: {cmd}")
+                            result = subprocess.run(
+                                cmd,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                text=True
+                            )
+                            
+                            if result.returncode == 0 and os.path.exists(converted_file):
+                                downloaded_file = converted_file
+                                logger.info(f"فایل با موفقیت به کیفیت {quality} تبدیل شد: {downloaded_file}")
+                                # افزودن به کش با کیفیت جدید
+                                add_to_cache(url, downloaded_file, quality)
+                            else:
+                                logger.error(f"تبدیل کیفیت ناموفق بود. کد بازگشت: {result.returncode}")
+                                logger.error(f"خروجی خطا: {result.stderr}")
+                                # برگرداندن فایل اصلی
+                                downloaded_file = best_quality_file
+                        except Exception as e:
+                            logger.error(f"خطا در اجرای ffmpeg: {str(e)}")
+                            # برگرداندن فایل اصلی
+                            downloaded_file = best_quality_file
+                    else:
+                        # اگر تنظیمات ffmpeg برای این کیفیت وجود نداشت، فایل اصلی را برمی‌گردانیم
+                        logger.warning(f"تنظیمات ffmpeg برای کیفیت {quality} یافت نشد، فایل اصلی برگردانده می‌شود")
+                        downloaded_file = best_quality_file
                 
             if downloaded_file and os.path.exists(downloaded_file):
                 # بررسی اگر درخواست صوت بوده ولی فایل ویدیویی دانلود شده
