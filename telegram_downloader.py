@@ -1004,7 +1004,7 @@ class InstagramDownloader:
                 {"id": "instagram_high", "label": "کیفیت بالا (1080p)", "quality": "best", "type": "video"},
                 {"id": "instagram_medium", "label": "کیفیت متوسط (480p)", "quality": "medium", "type": "video"},
                 {"id": "instagram_low", "label": "کیفیت پایین (240p)", "quality": "low", "type": "video"},
-                {"id": "instagram_audio", "label": "فقط صدا (MP3)", "quality": "audio", "type": "audio"}
+                {"id": "instagram_audio", "label": "کیفیت audio", "quality": "audio", "type": "audio"}
             ]
             
             return options
@@ -1185,6 +1185,15 @@ class YouTubeDownloader:
                             "display_name": "کیفیت متوسط (480p)",
                             "type": "video",
                             "priority": 2
+                        },
+                        {
+                            "id": "youtube_audio", 
+                            "label": "کیفیت audio", 
+                            "quality": "audio", 
+                            "format": "bestaudio[ext=m4a]",
+                            "display_name": "کیفیت audio",
+                            "type": "audio",
+                            "priority": 3
                         },
                     ]
                 else:
