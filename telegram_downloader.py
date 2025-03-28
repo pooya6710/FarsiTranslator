@@ -885,6 +885,8 @@ class InstagramDownloader:
                 'writeinfojson': False,
                 'writethumbnail': False,
                 'noplaylist': True,
+                'ffmpeg_location': '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
+                'prefer_ffmpeg': True,
             }
             
             # اجرا در thread pool
@@ -1009,7 +1011,7 @@ class InstagramDownloader:
                 {"id": "instagram_480p", "label": "کیفیت متوسط (480p)", "quality": "480p", "type": "video"},
                 {"id": "instagram_360p", "label": "کیفیت پایین (360p)", "quality": "360p", "type": "video"},
                 {"id": "instagram_240p", "label": "کیفیت خیلی پایین (240p)", "quality": "240p", "type": "video"},
-                {"id": "instagram_audio", "label": "فقط صدا (MP3)", "quality": "audio", "type": "audio"}
+                {"id": "instagram_audio", "label": "فقط صدا (MP3)", "quality": "audio", "type": "audio", "display_name": "فقط صدا (MP3)"}
             ]
             
             return options
@@ -1035,6 +1037,8 @@ class YouTubeDownloader:
             'noplaylist': True,
             'quiet': True,
             'no_warnings': True,
+            'ffmpeg_location': '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
+            'prefer_ffmpeg': True,
         }
         
         logger.info("دانلودر یوتیوب راه‌اندازی شد")
@@ -1703,12 +1707,10 @@ async def process_instagram_url(update: Update, context: ContextTypes.DEFAULT_TY
         # افزودن دکمه‌های ویدیو
         keyboard.extend(video_buttons)
         
-        # حذف دکمه‌های اضافی و نگه‌داشتن فقط گزینه‌ی "کیفیت audio"
-        audio_buttons = [btn for btn in audio_buttons if "audio" in btn[0].text.lower()]
-
-        # اگر دکمه‌ی "کیفیت audio" وجود داشته باشد، فقط همان را اضافه کن
+        # اطمینان از نمایش فقط یک دکمه‌ی صوتی
         if audio_buttons:
-            keyboard.append(audio_buttons[0])  # فقط اولین گزینه‌ی "کیفیت audio"
+            # افزودن دکمه با نام "فقط صدا" و callback_data مخصوص صدا
+            keyboard.append([InlineKeyboardButton("🎵 فقط صدا (MP3)", callback_data=f"dl_ig_audio_{url_id}")])  # از callback_data مخصوص برای صدا استفاده می‌کنیم
 
             
         reply_markup = InlineKeyboardMarkup(keyboard)
