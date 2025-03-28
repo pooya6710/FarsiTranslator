@@ -1604,18 +1604,6 @@ async def process_instagram_url(update: Update, context: ContextTypes.DEFAULT_TY
             await status_message.edit_text(ERROR_MESSAGES["fetch_options_failed"])
             return
             
-        # افزودن گزینه صوتی به گزینه‌های دانلود اینستاگرام
-        audio_option = {
-            "quality": "audio",
-            "type": "audio",
-            "display_name": "🎵 فقط صدا",
-            "format_note": "audio only",
-            "id": "audio"
-        }
-        
-        # اضافه کردن گزینه صوتی به لیست گزینه‌ها
-        options.append(audio_option)
-            
         # ذخیره URL در داده‌های کاربر
         user_id = update.effective_user.id
         
@@ -1667,19 +1655,22 @@ async def process_instagram_url(update: Update, context: ContextTypes.DEFAULT_TY
             )
             
             # تفکیک دکمه‌ها بر اساس نوع
-            if option.get('type') == 'audio':
+            if option.get('type') == 'audio' and "audio" in option.get("quality", "").lower():
                 audio_buttons.append([button])
+
             else:
                 video_buttons.append([button])
         
         # افزودن دکمه‌های ویدیو
         keyboard.extend(video_buttons)
         
-        # اضافه کردن دکمه‌های صوتی برای اینستاگرام
+        # حذف دکمه‌های اضافی و نگه‌داشتن فقط گزینه‌ی "کیفیت audio"
+        audio_buttons = [btn for btn in audio_buttons if "audio" in btn[0].text.lower()]
+
+        # اگر دکمه‌ی "کیفیت audio" وجود داشته باشد، فقط همان را اضافه کن
         if audio_buttons:
-            # افزودن عنوان بخش صدا
-            keyboard.append([InlineKeyboardButton("🎵 فقط صدا:", callback_data="header_audio")])
-            keyboard.extend(audio_buttons)
+            keyboard.append(audio_buttons[0])  # فقط اولین گزینه‌ی "کیفیت audio"
+
             
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -1787,7 +1778,9 @@ async def process_youtube_url(update: Update, context: ContextTypes.DEFAULT_TYPE
             
             # تفکیک دکمه‌ها بر اساس نوع
             if option.get('format_note', '').lower() == 'audio only' or option.get('type') == 'audio':
-                audio_buttons.append([button])
+                if not any("دانلود فقط صدا" in btn[0].text for btn in audio_buttons):  # بررسی عدم وجود دکمه تکراری
+                    audio_buttons.append([InlineKeyboardButton("🎵 دانلود فقط صدا", callback_data=f"dl_yt_audio_{url_id}")])
+
             elif 'playlist' in option.get('format_id', '').lower():
                 playlist_buttons.append([button])
             else:
@@ -1803,8 +1796,6 @@ async def process_youtube_url(update: Update, context: ContextTypes.DEFAULT_TYPE
             # دکمه عنوان با callback_data خنثی
             # اضافه کردن دکمه فقط صدا برای دانلود مستقیم صوتی
             keyboard.append([InlineKeyboardButton("🎵 دانلود فقط صدا", callback_data=f"dl_yt_audio_{url_id}")])
-            # اضافه کردن سایر گزینه‌های صوتی
-            keyboard.extend(audio_buttons)
             
         # افزودن عنوان بخش پلی‌لیست
         if playlist_buttons:

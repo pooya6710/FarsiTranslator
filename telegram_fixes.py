@@ -73,6 +73,14 @@ VIDEO_QUALITY_MAP = {
         'format_note': 'کیفیت متوسط',
         'priority': 4
     },
+    'medium': {  # اضافه کردن کیفیت متوسط برای سازگاری با اینستاگرام
+        'height': 480, 
+        'width': 854, 
+        'display_name': 'کیفیت متوسط (480p)', 
+        'ffmpeg_options': ['-vf', 'scale=-2:480', '-b:v', '1000k'],
+        'format_note': 'کیفیت متوسط',
+        'priority': 4
+    },
     '360p': {
         'height': 360, 
         'width': 640, 
@@ -87,6 +95,14 @@ VIDEO_QUALITY_MAP = {
         'display_name': 'کیفیت خیلی پایین (240p)', 
         'ffmpeg_options': ['-vf', 'scale=-2:240', '-b:v', '500k'],
         'format_note': 'کیفیت خیلی پایین',
+        'priority': 6
+    },
+    'low': {  # اضافه کردن کیفیت پایین برای سازگاری با اینستاگرام
+        'height': 240, 
+        'width': 426, 
+        'display_name': 'کیفیت پایین (240p)', 
+        'ffmpeg_options': ['-vf', 'scale=-2:240', '-b:v', '500k'],
+        'format_note': 'کیفیت پایین',
         'priority': 6
     },
     'audio': {
@@ -307,22 +323,57 @@ async def download_with_quality(url: str, quality: str = 'best', is_audio: bool 
                 output_template = os.path.join(DEFAULT_DOWNLOAD_DIR, f'youtube_{quality}_{download_id}.%(ext)s')
             
             elif source_type == 'instagram':
-                # دانلود از اینستاگرام با تنظیمات بهینه
+                # دانلود از اینستاگرام با تنظیمات فوق پیشرفته بهینه
+                # استراتژی دقیق تنظیم کیفیت برای اینستاگرام
+                # کیفیت مختلف برای اینستاگرام بر اساس نقشه کیفیت
+                
+                # محاسبه format_spec پیشرفته برای انتخاب درست کیفیت در اینستاگرام
                 if quality == 'best':
+                    # بهترین کیفیت با ارجحیت فرمت MP4 برای حداکثر سازگاری
                     format_spec = 'best[ext=mp4]/best'
+                elif quality == 'medium':
+                    # تنظیم دقیق برای کیفیت متوسط - تنظیم هوشمند ارتفاع بین 480 و 360
+                    format_spec = f'best[height<=480][height>=360][ext=mp4]/best[height<=480][height>=360]/best[height<=480][ext=mp4]/best[height<=480]/best[ext=mp4]/best'
+                elif quality == 'low':
+                    # تنظیم دقیق برای کیفیت پایین - حداکثر 240 پیکسل ارتفاع
+                    format_spec = f'best[height<=240][ext=mp4]/best[height<=240]/best[ext=mp4]/worst[ext=mp4]/worst'
+                elif quality in VIDEO_QUALITY_MAP and height:
+                    # کیفیت‌های عددی با ارتفاع دقیق (1080p, 720p, 480p, 360p, 240p)
+                    # استراتژی چند لایه برای انتخاب بهترین تطابق
+                    format_spec = (
+                        f'best[height={height}][ext=mp4]/'
+                        f'best[height<={height}][height>={max(height-100, 120)}][ext=mp4]/'
+                        f'best[height<={height}][ext=mp4]/'
+                        f'best[height<={height}]/'
+                        f'best[ext=mp4]/best'
+                    )
                 else:
-                    if height:
-                        format_spec = f'best[height<={height}][ext=mp4]/best[height<={height}]/best'
-                    else:
-                        format_spec = 'best[ext=mp4]/best'
+                    # حالت پیش‌فرض با اولویت MP4
+                    format_spec = 'best[ext=mp4]/best'
                 
-                logger.info(f"اینستاگرام - انتخاب کیفیت {quality} با فرمت: {format_spec}")
+                logger.info(f"اینستاگرام - انتخاب کیفیت {quality} با فرمت پیشرفته: {format_spec}")
                 
+                # اضافه کردن تنظیمات FFmpeg اختصاصی برای بهبود کیفیت ویدیوی اینستاگرام
+                instagram_ffmpeg_options = []
+                
+                # تنظیمات پیشرفته برای کنترل کیفیت
+                if quality == 'medium':
+                    # محدود کردن بیت‌ریت برای کیفیت متوسط
+                    instagram_ffmpeg_options = ['-b:v', '1500k', '-maxrate', '1800k', '-bufsize', '3000k']
+                elif quality == 'low':
+                    # محدود کردن بیت‌ریت برای کیفیت پایین
+                    instagram_ffmpeg_options = ['-b:v', '800k', '-maxrate', '1000k', '-bufsize', '1600k']
+                    
                 # تنظیمات پیشرفته برای کنترل کیفیت
                 ydl_opts.update({
                     'format': format_spec,
                     'merge_output_format': 'mp4',  # اطمینان از خروجی MP4
                 })
+                
+                # اضافه کردن تنظیمات FFmpeg در صورت وجود
+                if instagram_ffmpeg_options:
+                    logger.info(f"اعمال تنظیمات FFmpeg اختصاصی اینستاگرام: {instagram_ffmpeg_options}")
+                    ydl_opts['postprocessor_args'] = instagram_ffmpeg_options
                 
                 # اضافه کردن تنظیمات FFmpeg در صورت وجود
                 if ffmpeg_options:
