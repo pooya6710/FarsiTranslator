@@ -1,0 +1,15 @@
+
+{
+  "workflows": [
+    {
+      "name": "run_telegram_bot_complete",
+      "tasks": [
+        {
+          "id": "run_bot",
+          "type": "shell",
+          "command": "python telegram_bot_complete.py"
+        }
+      ]
+    }
+  ]
+}
