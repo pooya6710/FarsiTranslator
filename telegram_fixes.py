@@ -300,6 +300,8 @@ async def download_with_quality(url: str, quality: str = 'best', is_audio: bool 
                     '-ac', '2',      # تعداد کانال‌ها (استریو)
                     '-b:a', '192k',  # بیت‌ریت
                 ],
+                'ffmpeg_location': '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',  # تنظیم مسیر اختصاصی ffmpeg
+                'prefer_ffmpeg': True,  # ترجیح استفاده از ffmpeg
             })
             output_template = os.path.join(DEFAULT_DOWNLOAD_DIR, f'{source_type}_audio_{download_id}.%(ext)s')
         else:
@@ -371,14 +373,13 @@ async def download_with_quality(url: str, quality: str = 'best', is_audio: bool 
                 })
                 
                 # اضافه کردن تنظیمات FFmpeg در صورت وجود
-                if instagram_ffmpeg_options:
+                if ffmpeg_options:
+                    logger.info(f"اعمال تنظیمات FFmpeg از VIDEO_QUALITY_MAP: {ffmpeg_options}")
+                    ydl_opts['postprocessor_args'] = ffmpeg_options
+                # اضافه کردن تنظیمات FFmpeg اختصاصی اینستاگرام (اولویت باالتر)
+                elif instagram_ffmpeg_options:
                     logger.info(f"اعمال تنظیمات FFmpeg اختصاصی اینستاگرام: {instagram_ffmpeg_options}")
                     ydl_opts['postprocessor_args'] = instagram_ffmpeg_options
-                
-                # اضافه کردن تنظیمات FFmpeg در صورت وجود
-                if ffmpeg_options:
-                    logger.info(f"اعمال تنظیمات FFmpeg: {ffmpeg_options}")
-                    ydl_opts['postprocessor_args'] = ffmpeg_options
                 
                 output_template = os.path.join(DEFAULT_DOWNLOAD_DIR, f'instagram_{quality}_{download_id}.%(ext)s')
             else:
@@ -447,7 +448,7 @@ async def download_with_quality(url: str, quality: str = 'best', is_audio: bool 
                 audio_path = os.path.join(output_dir, f"{file_name}_audio.mp3")
                 
                 cmd = [
-                    'ffmpeg',
+                    '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
                     '-i', downloaded_file,
                     '-vn',  # بدون ویدیو
                     '-acodec', 'libmp3lame',
@@ -602,7 +603,7 @@ def extract_audio_from_video(video_path: str, output_format: str = 'mp3', bitrat
             logger.info("روش 4: استفاده مستقیم از FFmpeg")
             # آماده‌سازی دستور FFmpeg با تنظیمات پیشرفته
             cmd = [
-                'ffmpeg',
+                '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
                 '-i', video_path,
                 '-vn',            # حذف ویدیو
                 '-acodec', 'libmp3lame' if output_format == 'mp3' else 'aac' if output_format == 'm4a' else 'flac' if output_format == 'flac' else 'copy',
@@ -637,7 +638,7 @@ def extract_audio_from_video(video_path: str, output_format: str = 'mp3', bitrat
             logger.info("روش 5: استفاده از FFmpeg (ساده)")
             # دستور ساده‌تر برای استخراج صدا
             cmd = [
-                'ffmpeg',
+                '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
                 '-i', video_path,
                 '-vn',               # حذف ویدیو
                 '-acodec', 'copy',   # کدک صدا را تغییر نده، فقط کپی کن
@@ -668,6 +669,7 @@ def extract_audio_from_video(video_path: str, output_format: str = 'mp3', bitrat
             logger.info("روش 6: استفاده از FFmpeg در مسیرهای جایگزین")
             # لیستی از مسیرهای احتمالی ffmpeg
             ffmpeg_paths = [
+                '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
                 'ffmpeg',
                 '/usr/bin/ffmpeg',
                 '/usr/local/bin/ffmpeg',
