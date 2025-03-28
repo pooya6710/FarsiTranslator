@@ -1111,44 +1111,152 @@ class YouTubeDownloader:
             
     async def get_download_options(self, url: str) -> List[Dict]:
         """
-        دریافت گزینه‌های دانلود برای ویدیوی یوتیوب
+        دریافت گزینه‌های دانلود برای ویدیوی یوتیوب (نسخه بهبود یافته)
         
         Args:
             url: آدرس ویدیوی یوتیوب
             
         Returns:
-            لیستی از گزینه‌های دانلود
+            لیستی از گزینه‌های دانلود با ساختار استاندارد
         """
         try:
             # دریافت اطلاعات ویدیو
             info = await self.get_video_info(url)
             if not info:
+                logger.error(f"اطلاعات ویدیو دریافت نشد: {url}")
                 return []
-                
-            formats = []
+            
+            # استخراج اطلاعات پایه
+            title = info.get('title', 'ویدیو')
+            duration = info.get('duration', 0)
+            is_short = is_youtube_shorts(url) or (duration and duration < 60)
+            
+            logger.info(f"دریافت گزینه‌های دانلود برای: {title} - مدت: {duration} ثانیه")
+            
+            options = []
             
             # بررسی آیا این یک پلی‌لیست است
             if is_youtube_playlist(url):
-                formats = [
-                    {"id": "youtube_playlist_hd", "label": "دانلود 3 ویدیوی اول پلی‌لیست (720p)", "format": "best[height<=720]"},
-                    {"id": "youtube_playlist_sd", "label": "دانلود 3 ویدیوی اول پلی‌لیست (480p)", "format": "best[height<=480]"},
-                    {"id": "youtube_playlist_audio", "label": "دانلود صدای 3 ویدیوی اول پلی‌لیست", "format": "bestaudio[ext=m4a]"}
+                options = [
+                    {
+                        "id": "youtube_playlist_hd", 
+                        "label": "دانلود 3 ویدیوی اول پلی‌لیست (720p)", 
+                        "quality": "720p", 
+                        "format": "best[height<=720]",
+                        "display_name": "پلی‌لیست - کیفیت HD",
+                        "type": "playlist",
+                        "priority": 1
+                    },
+                    {
+                        "id": "youtube_playlist_sd", 
+                        "label": "دانلود 3 ویدیوی اول پلی‌لیست (480p)", 
+                        "quality": "480p", 
+                        "format": "best[height<=480]",
+                        "display_name": "پلی‌لیست - کیفیت متوسط",
+                        "type": "playlist",
+                        "priority": 2
+                    },
+                    {
+                        "id": "youtube_playlist_audio", 
+                        "label": "دانلود صدای 3 ویدیوی اول پلی‌لیست", 
+                        "quality": "audio", 
+                        "format": "bestaudio[ext=m4a]",
+                        "display_name": "پلی‌لیست - فقط صدا",
+                        "type": "audio",
+                        "priority": 3
+                    }
                 ]
             else:
-                # گزینه‌های کیفیت ویدیو
-                formats = [
-                    {"id": "youtube_1080p", "label": "کیفیت بالا (1080p)", "format": "best[height<=1080]"},
-                    {"id": "youtube_720p", "label": "کیفیت خوب (720p)", "format": "best[height<=720]"},
-                    {"id": "youtube_480p", "label": "کیفیت متوسط (480p)", "format": "best[height<=480]"},
-                    {"id": "youtube_360p", "label": "کیفیت پایین (360p)", "format": "best[height<=360]"},
-                    {"id": "youtube_240p", "label": "کیفیت خیلی پایین (240p)", "format": "best[height<=240]"},
-                    {"id": "youtube_audio", "label": "فقط صدا (MP3)", "format": "bestaudio[ext=m4a]"}
-                ]
-                
-            return formats
+                # اگر ویدیو کوتاه است (شورتز)، گزینه‌های کمتری ارائه می‌دهیم
+                if is_short:
+                    options = [
+                        {
+                            "id": "youtube_720p", 
+                            "label": "کیفیت HD (720p)", 
+                            "quality": "720p", 
+                            "format": "best[height<=720]",
+                            "display_name": "کیفیت HD (720p)",
+                            "type": "video",
+                            "priority": 1
+                        },
+                        {
+                            "id": "youtube_480p", 
+                            "label": "کیفیت متوسط (480p)", 
+                            "quality": "480p", 
+                            "format": "best[height<=480]",
+                            "display_name": "کیفیت متوسط (480p)",
+                            "type": "video",
+                            "priority": 2
+                        },
+                        {
+                            "id": "youtube_audio", 
+                            "label": "فقط صدا (MP3)", 
+                            "quality": "audio", 
+                            "format": "bestaudio[ext=m4a]",
+                            "display_name": "فقط صدا (MP3)",
+                            "type": "audio",
+                            "priority": 5
+                        }
+                    ]
+                else:
+                    # برای ویدیوهای معمولی، تمام گزینه‌های کیفیت
+                    options = [
+                        {
+                            "id": "youtube_1080p", 
+                            "label": "کیفیت Full HD (1080p)", 
+                            "quality": "1080p", 
+                            "format": "best[height<=1080]",
+                            "display_name": "کیفیت Full HD (1080p)",
+                            "type": "video",
+                            "priority": 1
+                        },
+                        {
+                            "id": "youtube_720p", 
+                            "label": "کیفیت HD (720p)", 
+                            "quality": "720p", 
+                            "format": "best[height<=720]",
+                            "display_name": "کیفیت HD (720p)",
+                            "type": "video",
+                            "priority": 2
+                        },
+                        {
+                            "id": "youtube_480p", 
+                            "label": "کیفیت متوسط (480p)", 
+                            "quality": "480p", 
+                            "format": "best[height<=480]",
+                            "display_name": "کیفیت متوسط (480p)",
+                            "type": "video",
+                            "priority": 3
+                        },
+                        {
+                            "id": "youtube_360p", 
+                            "label": "کیفیت پایین (360p)", 
+                            "quality": "360p", 
+                            "format": "best[height<=360]",
+                            "display_name": "کیفیت پایین (360p)",
+                            "type": "video",
+                            "priority": 4
+                        },
+                        {
+                            "id": "youtube_audio", 
+                            "label": "فقط صدا (MP3)", 
+                            "quality": "audio", 
+                            "format": "bestaudio[ext=m4a]",
+                            "display_name": "فقط صدا (MP3)",
+                            "type": "audio",
+                            "priority": 5
+                        }
+                    ]
+
+            # مرتب‌سازی گزینه‌ها براساس اولویت
+            options = sorted(options, key=lambda x: x.get('priority', 99))
+            
+            logger.info(f"تعداد گزینه‌های دانلود ایجاد شده: {len(options)}")
+            return options
             
         except Exception as e:
             logger.error(f"خطا در دریافت گزینه‌های دانلود یوتیوب: {str(e)}")
+            logger.error(f"جزئیات خطا: {traceback.format_exc()}")
             return []
             
     async def download_video(self, url: str, format_option: str) -> Optional[str]:
@@ -1496,6 +1604,18 @@ async def process_instagram_url(update: Update, context: ContextTypes.DEFAULT_TY
             await status_message.edit_text(ERROR_MESSAGES["fetch_options_failed"])
             return
             
+        # افزودن گزینه صوتی به گزینه‌های دانلود اینستاگرام
+        audio_option = {
+            "quality": "audio",
+            "type": "audio",
+            "display_name": "🎵 فقط صدا",
+            "format_note": "audio only",
+            "id": "audio"
+        }
+        
+        # اضافه کردن گزینه صوتی به لیست گزینه‌ها
+        options.append(audio_option)
+            
         # ذخیره URL در داده‌های کاربر
         user_id = update.effective_user.id
         
@@ -1555,8 +1675,10 @@ async def process_instagram_url(update: Update, context: ContextTypes.DEFAULT_TY
         # افزودن دکمه‌های ویدیو
         keyboard.extend(video_buttons)
         
-        # اضافه کردن دکمه‌های صوتی (بدون دکمه "فقط صدا" برای اینستاگرام)
+        # اضافه کردن دکمه‌های صوتی برای اینستاگرام
         if audio_buttons:
+            # افزودن عنوان بخش صدا
+            keyboard.append([InlineKeyboardButton("🎵 فقط صدا:", callback_data="header_audio")])
             keyboard.extend(audio_buttons)
             
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1594,7 +1716,7 @@ async def process_instagram_url(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def process_youtube_url(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, status_message, url_id: str = None) -> None:
     """
-    پردازش URL یوتیوب
+    پردازش URL یوتیوب و نمایش گزینه‌های دانلود (نسخه بهبود یافته)
     
     Args:
         update: آبجکت آپدیت تلگرام
@@ -1678,8 +1800,10 @@ async def process_youtube_url(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         # افزودن عنوان بخش صدا
         if audio_buttons:
-            # دکمه عنوان با callback_data معتبر
-            keyboard.append([InlineKeyboardButton("🎵 فقط صدا", callback_data=f"dl_yt_audio_{url_id}")])
+            # دکمه عنوان با callback_data خنثی
+            # اضافه کردن دکمه فقط صدا برای دانلود مستقیم صوتی
+            keyboard.append([InlineKeyboardButton("🎵 دانلود فقط صدا", callback_data=f"dl_yt_audio_{url_id}")])
+            # اضافه کردن سایر گزینه‌های صوتی
             keyboard.extend(audio_buttons)
             
         # افزودن عنوان بخش پلی‌لیست
@@ -1952,18 +2076,24 @@ async def handle_download_option(update: Update, context: ContextTypes.DEFAULT_T
                 return
                 
             elif is_youtube_url(url):
-                # دانلود صوتی یوتیوب
-                # تنظیمات خاص برای دانلود فقط صوت
+                # دانلود صوتی یوتیوب - ورژن بهبود یافته
+                # تنظیمات پیشرفته برای دانلود صوتی با کیفیت بالا
                 ydl_opts = {
-                    'format': 'bestaudio',
+                    'format': 'bestaudio/best',
                     'postprocessors': [{
                         'key': 'FFmpegExtractAudio',
                         'preferredcodec': 'mp3',
                         'preferredquality': '192',
+                    }, {
+                        'key': 'FFmpegMetadata',
+                        'add_metadata': True,
                     }],
                     'outtmpl': os.path.join(TEMP_DOWNLOAD_DIR, 'yt_audio_%(id)s.%(ext)s'),
+                    'writethumbnail': True,
                     'quiet': True,
                     'noplaylist': True,
+                    'prefer_ffmpeg': True,
+                    'ffmpeg_location': '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg'  # تنظیم مسیر اختصاصی ffmpeg
                 }
                 
                 # دانلود
@@ -2535,6 +2665,7 @@ async def download_youtube_with_option(update: Update, context: ContextTypes.DEF
                         'preferredcodec': 'mp3',
                         'preferredquality': '192',
                     }],
+                    'ffmpeg_location': '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
                     'outtmpl': output_path.replace('.mp3', '.%(ext)s'),
                     'quiet': True,
                     'cookiefile': YOUTUBE_COOKIE_FILE,
