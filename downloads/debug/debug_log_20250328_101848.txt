@@ -1,0 +1,23 @@
+2025-03-28 10:18:48,817 - debug_patch - INFO - محیط عیب‌یابی آماده شد. فایل لاگ: downloads/debug/debug_log_20250328_101848.txt
+2025-03-28 10:18:48,818 - debug_patch - INFO - فایل لاگ عیب‌یابی: downloads/debug/debug_log_20250328_101848.txt
+2025-03-28 10:18:48,819 - debug_patch - INFO - تعداد 4 مشکل بالقوه در کد پیدا شد:
+2025-03-28 10:18:48,819 - debug_patch - INFO - 1. مشکل: تشخیص فایل صوتی بر اساس شناسه گزینه به تنهایی می‌تواند گمراه‌کننده باشد | پیشنهاد: بررسی دقیق‌تر با چند شرط مختلف
+2025-03-28 10:18:48,819 - debug_patch - INFO - 2. مشکل: تنظیم quality به مقدار 'audio' ممکن است باعث سردرگمی شود | پیشنهاد: استفاده از متغیر جداگانه برای تعیین نوع فایل
+2025-03-28 10:18:48,819 - debug_patch - INFO - 3. مشکل: تشخیص نوع فایل بر اساس پسوند فایل می‌تواند نادرست باشد | پیشنهاد: استفاده از منطق مشخص برای تعیین نوع خروجی
+2025-03-28 10:18:48,819 - debug_patch - INFO - 4. مشکل در telegram_fixes.py: مشکل احتمالی در نحوه استفاده از scale در ffmpeg | پیشنهاد: بررسی دقیق پارامترهای scale برای اطمینان از عرض زوج
+2025-03-28 10:18:48,820 - debug_patch - INFO - تعداد 30 فایل ویدیویی پیدا شد.
+2025-03-28 10:18:48,820 - debug_patch - INFO - استفاده از فایل downloads/instagram_ytdlp_DEKth9PMpg1.mp4 برای تست...
+2025-03-28 10:18:50,543 - debug_patch - INFO - اطلاعات استریم ویدیو: رزولوشن: 1080x1920, کدک: vp9
+2025-03-28 10:18:50,543 - debug_patch - INFO - اطلاعات استریم صوتی: کدک: aac, کانال‌ها: 2
+2025-03-28 10:18:50,543 - debug_patch - INFO - == تحلیل فایل ویدیویی ==
+2025-03-28 10:18:50,543 - debug_patch - INFO - مسیر: downloads/instagram_ytdlp_DEKth9PMpg1.mp4
+2025-03-28 10:18:50,543 - debug_patch - INFO - حجم: 9040.17 کیلوبایت
+2025-03-28 10:18:50,543 - debug_patch - INFO - مدت: 40.90 ثانیه
+2025-03-28 10:18:50,544 - debug_patch - INFO - دارای ویدیو: True
+2025-03-28 10:18:50,544 - debug_patch - INFO - دارای صدا: True
+2025-03-28 10:18:50,544 - debug_patch - INFO - رزولوشن: 1080x1920
+2025-03-28 10:18:50,544 - debug_patch - INFO - 
+== تست تبدیل به کیفیت 360p ==
+2025-03-28 10:18:50,638 - debug_patch - INFO - اطلاعات استریم ویدیو: رزولوشن: 1080x1920, کدک: vp9
+2025-03-28 10:18:50,638 - debug_patch - INFO - اطلاعات استریم صوتی: کدک: aac, کانال‌ها: 2
+2025-03-28 10:18:50,638 - debug_patch - INFO - اجرای دستور ffmpeg: /nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg -i downloads/instagram_ytdlp_DEKth9PMpg1.mp4 -c:v libx264 -c:a copy -vf scale=trunc(oh*a/2)*2:360 -preset fast -y downloads/debug/converted_360p_1743157130.mp4
