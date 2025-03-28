@@ -723,12 +723,13 @@ class InstagramDownloader:
             مسیر فایل دانلود شده یا None در صورت خطا
         """
         try:
-            # بررسی کش با در نظر گرفتن کیفیت
-            cache_key = f"{url}_{quality}"
-            cached_file = get_from_cache(cache_key)
-            if cached_file:
-                logger.info(f"فایل از کش برگردانده شد (کیفیت {quality}): {cached_file}")
-                return cached_file
+            # بررسی کش با در نظر گرفتن کیفیت (فقط برای حالت best و audio)
+            if quality in ["best", "audio"]:
+                cache_key = f"{url}_{quality}"
+                cached_file = get_from_cache(cache_key)
+                if cached_file and os.path.exists(cached_file):
+                    logger.info(f"فایل از کش برگردانده شد (کیفیت {quality}): {cached_file}")
+                    return cached_file
                 
             # استخراج کد کوتاه پست
             shortcode = self.extract_post_shortcode(url)
@@ -2347,10 +2348,49 @@ async def download_instagram(update: Update, context: ContextTypes.DEFAULT_TYPE,
                 is_audio = True
             
         logger.info(f"دانلود اینستاگرام با کیفیت: {quality}, صوتی: {is_audio}")
-            
-        # دانلود ویدیو/صدا
-        downloaded_file = await downloader.download_post(url, quality)
         
+        # دانلود ویدیو با بهترین کیفیت
+        best_quality_file = await downloader.download_post(url, "best")
+        
+        if not best_quality_file or not os.path.exists(best_quality_file):
+            await query.edit_message_text(ERROR_MESSAGES["download_failed"])
+            return
+            
+        # پیام در حال پردازش
+        await query.edit_message_text(STATUS_MESSAGES["processing"])
+        
+        try:
+            # استفاده از تابع convert_video_quality برای تبدیل کیفیت
+            downloaded_file = best_quality_file
+            
+            # اگر کیفیت متفاوت از "best" است یا صوتی است، تبدیل کیفیت دهید
+            if quality != "best" or is_audio:
+                try:
+                    from telegram_fixes import convert_video_quality
+                    logger.info(f"تبدیل کیفیت ویدیو به {quality}, صوتی: {is_audio}")
+                    
+                    converted_file = convert_video_quality(
+                        video_path=best_quality_file, 
+                        quality=quality,
+                        is_audio_request=is_audio
+                    )
+                    
+                    if converted_file and os.path.exists(converted_file):
+                        downloaded_file = converted_file
+                        logger.info(f"تبدیل موفق: {downloaded_file}")
+                        # افزودن به کش
+                        add_to_cache(url, downloaded_file, quality)
+                    else:
+                        logger.warning("تبدیل ناموفق بود، استفاده از فایل اصلی")
+                except ImportError as ie:
+                    logger.error(f"ماژول telegram_fixes یافت نشد: {str(ie)}")
+                except Exception as e:
+                    logger.error(f"خطا در تبدیل کیفیت: {str(e)}")
+        except Exception as e:
+            logger.error(f"خطا در مرحله پردازش: {str(e)}")
+            # در صورت خطا از فایل اصلی استفاده می‌کنیم
+            downloaded_file = best_quality_file
+            
         if not downloaded_file or not os.path.exists(downloaded_file):
             await query.edit_message_text(ERROR_MESSAGES["download_failed"])
             return
