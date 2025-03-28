@@ -59,41 +59,51 @@ except ImportError:
 download_cache = {}
 CACHE_TIMEOUT = 3600  # یک ساعت
 
-def get_from_cache(url: str) -> Optional[str]:
+def get_from_cache(url: str, quality: str = None) -> Optional[str]:
     """Get file from download cache
     
     Args:
         url: URL of the file
+        quality: کیفیت درخواستی (برای تمایز بین فایل‌های مختلف با URL یکسان)
         
     Returns:
         Path to the cached file or None if not found or expired
     """
+    # ایجاد کلید کش با ترکیب URL و کیفیت
+    cache_key = f"{url}_{quality}" if quality else url
+    
     # Check if file exists in cache - بررسی وجود فایل در کش
-    if url in download_cache:
-        timestamp, file_path = download_cache[url]
+    if cache_key in download_cache:
+        timestamp, file_path = download_cache[cache_key]
         if time.time() - timestamp < CACHE_TIMEOUT and os.path.exists(file_path):
             # بررسی وجود فایل در سیستم فایل
             if os.path.exists(file_path):
                 # استفاده از logger در سطح ریشه برای هماهنگی با توابع تست
-                logging.info(f"فایل از کش برگردانده شد: {file_path}")
+                quality_info = f"کیفیت {quality}" if quality else "بدون تعیین کیفیت"
+                logging.info(f"فایل از کش برگردانده شد ({quality_info}): {file_path}")
                 return file_path
             else:
                 # حذف از کش اگر فایل وجود نداشته باشد
-                del download_cache[url]
+                del download_cache[cache_key]
     return None
 
-def add_to_cache(url: str, file_path: str):
+def add_to_cache(url: str, file_path: str, quality: str = None):
     """Add file to download cache
     
     Args:
         url: URL of the file
         file_path: Path to the saved file
+        quality: کیفیت فایل (برای تمایز بین فایل‌های مختلف با URL یکسان)
     """
+    # ایجاد کلید کش با ترکیب URL و کیفیت
+    cache_key = f"{url}_{quality}" if quality else url
+    
     # بررسی وجود فایل قبل از افزودن به کش
     if os.path.exists(file_path):
-        download_cache[url] = (time.time(), file_path)
+        download_cache[cache_key] = (time.time(), file_path)
         # استفاده از logger در سطح ریشه برای هماهنگی با توابع تست
-        logging.info(f"فایل به کش اضافه شد: {file_path}")
+        quality_info = f"کیفیت {quality}" if quality else "بدون تعیین کیفیت"
+        logging.info(f"فایل به کش اضافه شد ({quality_info}): {file_path}")
     else:
         logging.warning(f"فایل موجود نیست و به کش اضافه نشد: {file_path}")
 
@@ -1514,10 +1524,8 @@ async def process_instagram_url(update: Update, context: ContextTypes.DEFAULT_TY
         # افزودن دکمه‌های ویدیو
         keyboard.extend(video_buttons)
         
-        # اگر گزینه صوتی وجود دارد، اضافه کن
+        # اضافه کردن دکمه‌های صوتی (بدون دکمه "فقط صدا" برای اینستاگرام)
         if audio_buttons:
-            # دکمه عنوان با callback_data معتبر
-            keyboard.append([InlineKeyboardButton("🎵 فقط صدا", callback_data=f"dl_ig_audio_{url_id}")])
             keyboard.extend(audio_buttons)
             
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -2185,18 +2193,25 @@ async def download_instagram_with_option(update: Update, context: ContextTypes.D
             else:
                 await query.edit_message_text(STATUS_MESSAGES["downloading"])
                 
-            # دانلود با استفاده از ماژول جدید
-            logger.info(f"دانلود اینستاگرام با ماژول بهبود یافته: {quality}, صوتی={is_audio}")
-            downloaded_file = await download_with_quality(url, quality, is_audio, "instagram")
+            # بررسی کش با در نظر گرفتن کیفیت
+            cache_quality = quality if not is_audio else "audio"
+            cached_file = get_from_cache(url, cache_quality)
             
-            if downloaded_file and os.path.exists(downloaded_file):
-                # افزودن به کش با نوع مناسب
-                cache_key = url + ("_audio" if is_audio else "")
-                add_to_cache(cache_key, downloaded_file)
-                logger.info(f"فایل با موفقیت دانلود شد: {downloaded_file}")
+            if cached_file and os.path.exists(cached_file):
+                logger.info(f"فایل از کش برگردانده شد (کیفیت {cache_quality}): {cached_file}")
+                downloaded_file = cached_file
             else:
-                logger.error(f"دانلود با ماژول بهبود یافته ناموفق بود")
-                raise Exception("دانلود با ماژول بهبود یافته ناموفق بود")
+                # دانلود با استفاده از ماژول جدید
+                logger.info(f"دانلود اینستاگرام با ماژول بهبود یافته: {quality}, صوتی={is_audio}")
+                downloaded_file = await download_with_quality(url, quality, is_audio, "instagram")
+                
+                if downloaded_file and os.path.exists(downloaded_file):
+                    # افزودن به کش با در نظر گرفتن کیفیت
+                    add_to_cache(url, downloaded_file, cache_quality)
+                    logger.info(f"فایل با موفقیت دانلود شد: {downloaded_file}")
+                else:
+                    logger.error(f"دانلود با ماژول بهبود یافته ناموفق بود")
+                    raise Exception("دانلود با ماژول بهبود یافته ناموفق بود")
             
         except ImportError:
             logger.info("ماژول بهبود یافته در دسترس نیست، استفاده از روش قدیمی")
@@ -2367,9 +2382,21 @@ async def download_youtube_with_option(update: Update, context: ContextTypes.DEF
                 
             logger.info(f"کیفیت انتخابی برای دانلود: {quality}, صوتی: {is_audio}")
             
-            # دانلود با استفاده از ماژول جدید
-            downloaded_file = await download_with_quality(url, quality, is_audio, "youtube")
+            # بررسی کش با در نظر گرفتن کیفیت
+            cache_quality = quality if not is_audio else "audio"
+            cached_file = get_from_cache(url, cache_quality)
             
+            if cached_file and os.path.exists(cached_file):
+                logger.info(f"فایل از کش برگردانده شد (کیفیت {cache_quality}): {cached_file}")
+                downloaded_file = cached_file
+            else:
+                # دانلود با استفاده از ماژول جدید
+                downloaded_file = await download_with_quality(url, quality, is_audio, "youtube")
+                
+                if downloaded_file and os.path.exists(downloaded_file):
+                    # افزودن به کش با در نظر گرفتن کیفیت
+                    add_to_cache(url, downloaded_file, cache_quality)
+                
             if downloaded_file and os.path.exists(downloaded_file):
                 # بررسی اگر درخواست صوت بوده ولی فایل ویدیویی دانلود شده
                 if is_audio and not downloaded_file.lower().endswith(('.mp3', '.m4a', '.aac', '.wav')):
@@ -2438,10 +2465,10 @@ async def download_youtube_with_option(update: Update, context: ContextTypes.DEF
                         # اگر استخراج صدا موفق بود، فایل را جایگزین می‌کنیم
                         downloaded_file = audio_path
                 
-                # افزودن به کش
-                cache_key = url + ("_audio" if is_audio else "")
-                add_to_cache(cache_key, downloaded_file)
-                logger.info(f"فایل با موفقیت دانلود شد: {downloaded_file}")
+                # افزودن به کش با کیفیت
+                cache_quality = "audio" if is_audio else quality
+                add_to_cache(url, downloaded_file, cache_quality)
+                logger.info(f"فایل با موفقیت دانلود شد (کیفیت {cache_quality}): {downloaded_file}")
             else:
                 logger.error(f"دانلود با ماژول بهبود یافته ناموفق بود")
                 raise Exception("دانلود با ماژول بهبود یافته ناموفق بود")
@@ -2507,8 +2534,8 @@ async def download_youtube_with_option(update: Update, context: ContextTypes.DEF
                     return
                     
                 downloaded_file = output_path
-                # افزودن به کش
-                add_to_cache(url + "_audio", downloaded_file)
+                # افزودن به کش با کیفیت
+                add_to_cache(url, downloaded_file, "audio")
                 
             else:
                 # دانلود محتوا با فرمت انتخاب شده
@@ -2623,17 +2650,23 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             output_filename = f"{title}_{video_id}.mp3"
             output_path = get_unique_filename(TEMP_DOWNLOAD_DIR, output_filename)
             
-            # تنظیمات yt-dlp برای دانلود صوتی
+            # تنظیمات yt-dlp برای دانلود صوتی - با تاکید روی تبدیل به mp3
             ydl_opts = {
-                'format': 'bestaudio',
+                'format': 'bestaudio[ext=m4a]/bestaudio/ba*',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
                     'preferredquality': '192',
+                },
+                {
+                    # پردازشگر برای بهبود کیفیت صدا و اضافه کردن متادیتا
+                    'key': 'FFmpegMetadata',
+                    'add_metadata': True,
                 }],
                 'outtmpl': output_path.replace('.mp3', '.%(ext)s'),
                 'quiet': True,
                 'cookiefile': YOUTUBE_COOKIE_FILE,
+                'noplaylist': True,  # فقط ویدیوی اصلی، نه پلی‌لیست
             }
             
             # دانلود فایل

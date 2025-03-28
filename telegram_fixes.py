@@ -147,14 +147,22 @@ def get_format_spec_for_quality(quality: str) -> str:
         رشته فرمت مناسب برای yt-dlp
     """
     if quality == 'audio':
-        return 'bestaudio[ext=m4a]/bestaudio'
+        # برای صدا، فقط بهترین کیفیت صوتی را دانلود می‌کنیم
+        return 'bestaudio[ext=m4a]/bestaudio/ba*'
     elif quality == 'best':
+        # برای بهترین کیفیت، ترکیب بهترین ویدیو و صدا
         return 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
     else:
         height = VIDEO_QUALITY_MAP.get(quality, {}).get('height', 0)
         if height:
-            # برای یوتیوب، ما فرمت دقیق‌تری با اولویت‌های مشخص استفاده می‌کنیم
-            return f'bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/best[height<={height}][ext=mp4]/best[height<={height}]'
+            # اصلاح شده برای انتخاب دقیق‌تر کیفیت در یوتیوب
+            # ابتدا ویدیو‌های با کیفیت دقیق انتخاب می‌شوند
+            # سپس ویدیو‌های با کیفیت نزدیک
+            return (
+                f'bestvideo[height={height}][ext=mp4]+bestaudio[ext=m4a]/'
+                f'bestvideo[height<={height}][height>={height-100}][ext=mp4]+bestaudio[ext=m4a]/'
+                f'best[height<={height}][ext=mp4]/best[height<={height}]'
+            )
         else:
             return 'best[ext=mp4]/best'
 
@@ -172,10 +180,6 @@ async def download_with_quality(url: str, quality: str = 'best', is_audio: bool 
         مسیر فایل دانلود شده یا None در صورت خطا
     """
     try:
-        # اگر audio انتخاب شده، گزینه is_audio روشن می‌شود
-        if quality == 'audio':
-            is_audio = True
-            
         # تنظیمات yt-dlp
         ydl_opts = YDL_OPTS_BASE.copy()
         
@@ -190,10 +194,13 @@ async def download_with_quality(url: str, quality: str = 'best', is_audio: bool 
         logger.info(f"کیفیت انتخاب شده: {display_name} (ارتفاع: {height})")
         
         # اگر درخواست صوتی است
-        if is_audio:
+        if is_audio or quality == 'audio':
+            # مطمئن می‌شویم is_audio صحیح است
+            is_audio = True
+            quality = 'audio'
             logger.info(f"درخواست دانلود صوتی از {source_type}: {url}")
             ydl_opts.update({
-                'format': 'bestaudio[ext=m4a]/bestaudio/best',
+                'format': 'bestaudio[ext=m4a]/bestaudio/ba*',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
