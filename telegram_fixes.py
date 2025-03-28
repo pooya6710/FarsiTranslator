@@ -488,6 +488,137 @@ async def download_with_quality(url: str, quality: str = 'best', is_audio: bool 
         logger.error(f"جزئیات خطا: {traceback.format_exc()}")
         return None
 
+def convert_video_quality(video_path: str, quality: str = "720p") -> Optional[str]:
+    """
+    تبدیل کیفیت ویدیو با استفاده از ffmpeg (روش ساده و مطمئن)
+    
+    Args:
+        video_path: مسیر فایل ویدیویی اصلی
+        quality: کیفیت هدف (1080p, 720p, 480p, 360p, 240p, audio)
+        
+    Returns:
+        مسیر فایل تبدیل شده یا None در صورت خطا
+    """
+    if not os.path.exists(video_path):
+        logger.error(f"فایل ویدیویی یافت نشد: {video_path}")
+        return None
+        
+    try:
+        # اگر کیفیت audio است، از استخراج صدا استفاده می‌کنیم
+        if quality == "audio":
+            logger.info(f"استخراج صدا از ویدیو: {video_path}")
+            return extract_audio_from_video(video_path)
+        
+        # ساده‌ترین روش برای تبدیل کیفیت - بسیار مطمئن
+        # تعیین ارتفاع برای هر کیفیت
+        quality_heights = {
+            "1080p": 1080, 
+            "720p": 720, 
+            "480p": 480, 
+            "360p": 360, 
+            "240p": 240
+        }
+        
+        # اگر کیفیت نامعتبر است، از 720p استفاده کن
+        if quality not in quality_heights:
+            logger.warning(f"کیفیت {quality} پشتیبانی نمی‌شود. استفاده از 720p به جای آن.")
+            quality = "720p"
+        
+        target_height = quality_heights[quality]
+        
+        # مسیر فایل خروجی
+        file_dir = os.path.dirname(video_path)
+        file_name, file_ext = os.path.splitext(os.path.basename(video_path))
+        converted_file = os.path.join(file_dir, f"{file_name}_{quality}{file_ext}")
+        
+        # بررسی ارتفاع فعلی ویدیو
+        ffprobe_cmd = [
+            '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffprobe', 
+            '-v', 'error', 
+            '-select_streams', 'v:0',
+            '-show_entries', 'stream=width,height', 
+            '-of', 'csv=p=0:s=x', 
+            video_path
+        ]
+        
+        probe_result = subprocess.run(
+            ffprobe_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # مشکل در دسترسی به اطلاعات ویدیو
+        if probe_result.returncode != 0 or not probe_result.stdout.strip():
+            logger.warning("نمی‌توان به اطلاعات ویدیو دست یافت - استفاده از روش امن")
+            # روش امن - تنظیم صریح اندازه
+            cmd = [
+                FFMPEG_PATH, 
+                '-i', video_path, 
+                '-c:v', 'libx264', 
+                '-c:a', 'copy',
+                '-vf', f'scale=trunc(oh*a/2)*2:{target_height}',  # مطمئن شویم عرض زوج است
+                '-preset', 'fast', 
+                '-y', 
+                converted_file
+            ]
+        else:
+            # اطلاعات ویدیو به دست آمد
+            dimensions = probe_result.stdout.strip()
+            logger.info(f"ابعاد اصلی ویدیو: {dimensions}")
+            
+            # روش اصلاح شده - تبدیل ساده با حفظ نسبت ابعاد و تضمین عرض زوج
+            cmd = [
+                FFMPEG_PATH, 
+                '-i', video_path, 
+                '-c:v', 'libx264', 
+                '-c:a', 'copy',
+                '-vf', f'scale=trunc(oh*a/2)*2:{target_height}',  # تضمین عرض زوج
+                '-preset', 'fast', 
+                '-y', 
+                converted_file
+            ]
+        
+        logger.info(f"در حال تبدیل ویدیو به کیفیت {quality}...")
+        
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # بررسی نتیجه
+        if result.returncode == 0 and os.path.exists(converted_file) and os.path.getsize(converted_file) > 10000:
+            logger.info(f"تبدیل کیفیت موفق: {converted_file}")
+            
+            # بررسی نهایی فایل
+            verify_cmd = [
+                '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffprobe', 
+                '-v', 'error', 
+                converted_file
+            ]
+            
+            verify_result = subprocess.run(
+                verify_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            if verify_result.returncode == 0:
+                return converted_file
+            else:
+                logger.error("فایل تبدیل شده معتبر نیست، برگشت به فایل اصلی")
+                return video_path
+        else:
+            logger.error(f"خطا در تبدیل کیفیت: {result.stderr[:200]}...")
+            return video_path
+    
+    except Exception as e:
+        logger.error(f"خطا در تبدیل کیفیت ویدیو: {str(e)}")
+        return video_path
+
 def extract_audio_from_video(video_path: str, output_format: str = 'mp3', bitrate: str = '192k') -> Optional[str]:
     """
     استخراج صدا از فایل ویدیویی (نسخه فوق پیشرفته با چند روش پشتیبان)
@@ -671,7 +802,7 @@ def extract_audio_from_video(video_path: str, output_format: str = 'mp3', bitrat
             ffmpeg_paths = [
                 '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
                 'ffmpeg',
-                '/usr/bin/ffmpeg',
+                '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
                 '/usr/local/bin/ffmpeg',
                 '/opt/homebrew/bin/ffmpeg',
                 '/opt/local/bin/ffmpeg',
