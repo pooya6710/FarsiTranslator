@@ -1194,26 +1194,57 @@ class YouTubeDownloader:
             ydl_opts = self.ydl_opts.copy()
             
             if is_audio_only:
-                # تنظیمات پیشرفته برای صدا
-                ydl_opts.update({
-                    'format': 'bestaudio[ext=m4a]/bestaudio/best',
-                    'postprocessors': [{
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': 'mp3',
-                        'preferredquality': '192',
-                    },
-                    {
-                        # پردازشگر برای بهبود کیفیت صدا
-                        'key': 'FFmpegMetadata',
-                        'add_metadata': True,
-                    }],
-                    'outtmpl': output_path.replace('.mp3', '.%(ext)s'),
-                    'postprocessor_args': [
-                        '-ar', '44100',  # نرخ نمونه‌برداری
-                        '-ac', '2',      # تعداد کانال‌ها (استریو)
-                        '-b:a', '192k',  # بیت‌ریت
-                    ],
-                })
+                try:
+                    # روش اول: استفاده از yt-dlp برای دانلود مستقیم صدا
+                    ydl_opts.update({
+                        'format': 'bestaudio[ext=m4a]/bestaudio/best',
+                        'postprocessors': [{
+                            'key': 'FFmpegExtractAudio',
+                            'preferredcodec': 'mp3',
+                            'preferredquality': '192',
+                        }],
+                        'outtmpl': output_path.replace('.mp3', '.%(ext)s'),
+                    })
+                    
+                    # دانلود با yt-dlp
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        await loop.run_in_executor(None, ydl.download, [clean_url])
+                        
+                    # اگر فایل ایجاد نشد، از روش دوم استفاده می‌کنیم
+                    if not os.path.exists(output_path):
+                        # روش دوم: دانلود ویدیو و استخراج صدا
+                        video_ydl_opts = self.ydl_opts.copy()
+                        video_ydl_opts.update({
+                            'format': 'best[ext=mp4]/best',
+                            'outtmpl': output_path.replace('.mp3', '_temp.mp4')
+                        })
+                        
+                        with yt_dlp.YoutubeDL(video_ydl_opts) as ydl:
+                            await loop.run_in_executor(None, ydl.download, [clean_url])
+                            
+                        # استخراج صدا از ویدیو
+                        video_path = output_path.replace('.mp3', '_temp.mp4')
+                        if os.path.exists(video_path):
+                            try:
+                                from audio_processing import extract_audio
+                                audio_path = extract_audio(video_path, 'mp3', '192k')
+                                if audio_path:
+                                    shutil.move(audio_path, output_path)
+                                    os.remove(video_path)
+                            except ImportError:
+                                logger.warning("ماژول audio_processing یافت نشد")
+                                try:
+                                    from telegram_fixes import extract_audio_from_video
+                                    audio_path = extract_audio_from_video(video_path, 'mp3', '192k')
+                                    if audio_path:
+                                        shutil.move(audio_path, output_path)
+                                        os.remove(video_path)
+                                except ImportError:
+                                    logger.warning("ماژول telegram_fixes نیز یافت نشد")
+                                    
+                except Exception as e:
+                    logger.error(f"خطا در استخراج صدا: {str(e)}")
+                    return None
             else:
                 # انتخاب فرمت بر اساس گزینه کاربر با اولویت کیفیت خاص
                 if '1080p' in format_option:
