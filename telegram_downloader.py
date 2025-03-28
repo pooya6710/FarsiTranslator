@@ -815,7 +815,7 @@ class InstagramDownloader:
                 try:
                     logger.info(f"تبدیل کیفیت ویدیو به {quality}...")
                     from telegram_fixes import convert_video_quality
-                    converted_path = convert_video_quality(original_path, quality)
+                    converted_path = convert_video_quality(original_path, quality, is_audio_request=False)
                     if converted_path and os.path.exists(converted_path):
                         final_path = converted_path
                         logger.info(f"تبدیل کیفیت ویدیو به {quality} موفقیت‌آمیز بود: {final_path}")
@@ -1539,7 +1539,7 @@ class YouTubeDownloader:
                     try:
                         logger.info(f"تبدیل کیفیت ویدیو به {quality}...")
                         from telegram_fixes import convert_video_quality
-                        converted_path = convert_video_quality(output_path, quality)
+                        converted_path = convert_video_quality(output_path, quality, is_audio_request=False)
                         if converted_path and os.path.exists(converted_path):
                             logger.info(f"تبدیل کیفیت موفق: {converted_path}")
                             output_path = converted_path
@@ -1756,10 +1756,11 @@ async def process_instagram_url(update: Update, context: ContextTypes.DEFAULT_TY
         keyboard.extend(video_buttons)
         
         # اطمینان از نمایش فقط یک دکمه‌ی صوتی
-        if audio_buttons:
+        # اگر هیچ دکمه‌ی صوتی وجود نداشته باشد، یک دکمه اضافه می‌کنیم
+        # در غیر این صورت، هیچ دکمه‌ای اضافه نمی‌کنیم چون قبلاً اضافه شده‌اند
+        if not audio_buttons:
             # افزودن دکمه با نام "فقط صدا" و callback_data مخصوص صدا
-            keyboard.append([InlineKeyboardButton("🎵 فقط صدا (MP3)", callback_data=f"dl_ig_audio_{url_id}")])  # از callback_data مخصوص برای صدا استفاده می‌کنیم
-
+            keyboard.append([InlineKeyboardButton("🎵 فقط صدا (MP3)", callback_data=f"dl_ig_audio_{url_id}")])
             
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -2503,11 +2504,14 @@ async def download_instagram_with_option(update: Update, context: ContextTypes.D
                     from telegram_fixes import convert_video_quality
                     logger.info(f"تبدیل کیفیت ویدیو با استفاده از ماژول بهبودیافته: {quality}")
                     
-                    if is_audio:
-                        quality = "audio"  # تنظیم کیفیت به 'audio' برای استخراج صدا
+                    # قبلاً: if is_audio: quality = "audio"
                     
                     # تبدیل کیفیت ویدیو یا استخراج صدا با تابع جامع
-                    converted_file = convert_video_quality(best_quality_file, quality)
+                    converted_file = convert_video_quality(
+                        video_path=best_quality_file, 
+                        quality=quality,
+                        is_audio_request=is_audio
+                    )
                     
                     if converted_file and os.path.exists(converted_file):
                         downloaded_file = converted_file
@@ -2732,11 +2736,14 @@ async def download_youtube_with_option(update: Update, context: ContextTypes.DEF
                     from telegram_fixes import convert_video_quality
                     logger.info(f"تبدیل کیفیت ویدیو با استفاده از ماژول بهبودیافته: {quality}")
                     
-                    if is_audio:
-                        quality = "audio"  # تنظیم کیفیت به 'audio' برای استخراج صدا
+                    # قبلاً: if is_audio: quality = "audio"
                     
                     # تبدیل کیفیت ویدیو یا استخراج صدا با تابع جامع
-                    converted_file = convert_video_quality(best_quality_file, quality)
+                    converted_file = convert_video_quality(
+                        video_path=best_quality_file, 
+                        quality=quality,
+                        is_audio_request=is_audio
+                    )
                     
                     if converted_file and os.path.exists(converted_file):
                         downloaded_file = converted_file

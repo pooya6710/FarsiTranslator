@@ -2101,7 +2101,7 @@ async def handle_download_option(update: Update, context: ContextTypes.DEFAULT_T
                             
                             # آماده‌سازی دستور FFmpeg
                             cmd = [
-                                'ffmpeg',
+                                '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
                                 '-i', downloaded_file,
                                 '-vn',  # بدون ویدیو
                                 '-acodec', 'libmp3lame',
@@ -2297,23 +2297,34 @@ async def download_instagram(update: Update, context: ContextTypes.DEFAULT_TYPE,
             quality = "audio"
             is_audio = True
             display_name = "فقط صدا"
+        # بررسی برای درخواست صوتی - 'instagram_audio' یا کلمه 'audio' در شناسه گزینه
+        elif "audio" in option_id.lower():
+            quality = "audio"
+            is_audio = True
+            display_name = "فقط صدا (MP3)"
+            logger.info(f"درخواست صوتی تشخیص داده شد: {option_id}")
         # بررسی نوع دانلود از نظر کیفیت - به ترتیب از بالاترین به پایین‌ترین کیفیت
         elif "1080p" in option_id:
             quality = "1080p"
+            is_audio = False  # تأکید بر درخواست ویدیویی
             display_name = "کیفیت Full HD (1080p)"
         elif "720p" in option_id:
             quality = "720p"
+            is_audio = False  # تأکید بر درخواست ویدیویی
             display_name = "کیفیت HD (720p)"
         elif "480p" in option_id:
             quality = "480p"
+            is_audio = False  # تأکید بر درخواست ویدیویی
             display_name = "کیفیت متوسط (480p)"
+            logger.info(f"کیفیت 480p انتخاب شد: {option_id}")
         elif "360p" in option_id:
             quality = "360p"
+            is_audio = False  # تأکید بر درخواست ویدیویی
             display_name = "کیفیت پایین (360p)"
             logger.info(f"کیفیت 360p انتخاب شد: {option_id}")
-            is_audio = False  # تأکید بر اینکه این یک درخواست ویدیویی است، نه صوتی
         elif "240p" in option_id:
             quality = "240p"
+            is_audio = False  # تأکید بر درخواست ویدیویی
             display_name = "کیفیت خیلی پایین (240p)"
         elif "medium" in option_id:
             quality = "480p"  # استفاده از فرمت جدید برای کیفیت متوسط
@@ -2353,9 +2364,9 @@ async def download_instagram(update: Update, context: ContextTypes.DEFAULT_TYPE,
         await query.edit_message_text(STATUS_MESSAGES["uploading"])
         
         # احترام به انتخاب کاربر برای نوع فایل (صوتی یا ویدیویی)
-        # فقط در صورتی که کاربر صریحاً انتخاب "فقط صدا" نکرده، بررسی می‌کنیم که آیا فایل صوتی است
-        if not is_audio:  # اگر قبلاً به عنوان صدا شناسایی نشده باشد
-            is_audio = downloaded_file.endswith(('.mp3', '.m4a', '.aac', '.wav'))
+        # اینجا تصمیم فقط بر اساس انتخاب کاربر است، نه پسوند فایل
+        # اگر کاربر گزینه صوتی انتخاب نکرده باشد، حتی اگر فایل با پسوند صوتی باشد، 
+        # به عنوان ویدیو در نظر گرفته می‌شود (ممکن است کیفیت با عنوان "فقط صدا" انتخاب شده باشد)
         
         # ارسال فایل بر اساس نوع آن
         if is_audio:
@@ -2411,8 +2422,17 @@ async def download_instagram_with_option(update: Update, context: ContextTypes.D
     try:
         logger.info(f"شروع دانلود اینستاگرام با گزینه کامل: {selected_option.get('quality', 'نامشخص')}")
         
-        # بررسی نوع گزینه (صدا یا ویدیو)
-        is_audio = selected_option.get('type') == 'audio'
+        # بررسی نوع گزینه (صدا یا ویدیو) با دقت بالا
+        option_id = selected_option.get('id', '')
+        option_type = selected_option.get('type', '')
+        is_audio = option_type == 'audio' or 'audio' in option_id.lower()
+        
+        # دقت بیشتر برای تشخیص درخواست‌های ویدیویی
+        if '240p' in option_id or '360p' in option_id or '480p' in option_id or '720p' in option_id or '1080p' in option_id:
+            is_audio = False
+            logger.info(f"درخواست ویدیویی تشخیص داده شد: {option_id}")
+            
+        logger.info(f"نوع گزینه انتخاب شده: {option_type}, شناسه: {option_id}, تشخیص صوتی: {is_audio}")
         
         # ایجاد دانلودر اینستاگرام
         downloader = InstagramDownloader()
@@ -2426,9 +2446,17 @@ async def download_instagram_with_option(update: Update, context: ContextTypes.D
             # نوع دانلود و کیفیت
             quality = selected_option.get('quality', 'best')
             
-            # بررسی دقیق نوع دانلود (صوتی یا ویدیویی)
-            option_id = selected_option.get('id', '')
-            is_audio = (selected_option.get('type') == 'audio') or ('audio' in option_id.lower() if option_id else False)
+            # همگام‌سازی با تشخیص نوع دانلود در بالا
+            quality = selected_option.get('quality', 'best')
+            
+            # دقت بیشتر برای تشخیص درخواست‌های ویدیویی
+            if ('240p' in option_id or '360p' in option_id or '480p' in option_id or 
+                '720p' in option_id or '1080p' in option_id):
+                is_audio = False
+                logger.info(f"درخواست ویدیویی در پردازش تشخیص داده شد: {option_id}")
+            elif 'audio' in option_id.lower() or selected_option.get('type') == 'audio':
+                is_audio = True
+                logger.info(f"درخواست صوتی در پردازش تشخیص داده شد: {option_id}")
             
             # پیام وضعیت
             if is_audio:
@@ -2723,7 +2751,10 @@ async def download_youtube_with_option(update: Update, context: ContextTypes.DEF
                     logger.error(f"خطا در تبدیل کیفیت: {str(e)}")
                     # برگرداندن فایل اصلی در صورت خطا
                     downloaded_file = best_quality_file
-                    if not audio_path or not os.path.exists(audio_path):
+                    
+                    # اگر درخواست صوتی بود، تلاش کنیم با روش‌های دیگر صدا را استخراج کنیم
+                    if is_audio:
+                        audio_path = None
                         try:
                             from telegram_fixes import extract_audio_from_video
                             audio_path = extract_audio_from_video(downloaded_file, 'mp3', '192k')
@@ -2731,58 +2762,55 @@ async def download_youtube_with_option(update: Update, context: ContextTypes.DEF
                         except (ImportError, Exception) as e:
                             logger.error(f"خطا در استفاده از تابع extract_audio_from_video: {e}")
                     
-                    # روش 3: استفاده مستقیم از FFmpeg
-                    if not audio_path or not os.path.exists(audio_path):
-                        logger.info("استفاده مستقیم از FFmpeg...")
-                        try:
-                            import subprocess
-                            import uuid
-                            
-                            base_name = os.path.basename(downloaded_file)
-                            file_name, _ = os.path.splitext(base_name)
-                            output_dir = os.path.dirname(downloaded_file)
-                            audio_path = os.path.join(output_dir, f"{file_name}_audio_{uuid.uuid4().hex[:8]}.mp3")
-                            
-                            cmd = [
-                                'ffmpeg',
-                                '-i', downloaded_file,
-                                '-vn',  # بدون ویدیو
-                                '-acodec', 'libmp3lame',
-                                '-ab', '192k',
-                                '-ar', '44100',
-                                '-ac', '2',
-                                '-y',  # جایگزینی فایل موجود
-                                audio_path
-                            ]
-                            
-                            logger.info(f"اجرای دستور FFmpeg: {' '.join(cmd)}")
-                            result = subprocess.run(
-                                cmd,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                text=True
-                            )
-                            
-                            if result.returncode != 0:
-                                logger.error(f"خطا در استخراج صدا با FFmpeg: {result.stderr}")
-                            elif os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
-                                logger.info(f"استخراج صدا با FFmpeg موفق: {audio_path}")
-                                downloaded_file = audio_path  # جایگزینی فایل ویدیویی با فایل صوتی
-                            else:
-                                logger.error(f"فایل صوتی ایجاد نشد یا خالی است: {audio_path}")
-                        except Exception as e:
-                            logger.error(f"خطا در اجرای FFmpeg: {e}")
-                    else:
-                        # اگر استخراج صدا موفق بود، فایل را جایگزین می‌کنیم
-                        downloaded_file = audio_path
+                        # روش دیگر: استفاده مستقیم از FFmpeg
+                        if not audio_path or not os.path.exists(audio_path):
+                            logger.info("استفاده مستقیم از FFmpeg...")
+                            try:
+                                import subprocess
+                                import uuid
+                                
+                                base_name = os.path.basename(downloaded_file)
+                                file_name, _ = os.path.splitext(base_name)
+                                output_dir = os.path.dirname(downloaded_file)
+                                audio_path = os.path.join(output_dir, f"{file_name}_audio_{uuid.uuid4().hex[:8]}.mp3")
+                                
+                                cmd = [
+                                    '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
+                                    '-i', downloaded_file,
+                                    '-vn',  # بدون ویدیو
+                                    '-acodec', 'libmp3lame',
+                                    '-ab', '192k',
+                                    '-ar', '44100',
+                                    '-ac', '2',
+                                    '-y',  # جایگزینی فایل موجود
+                                    audio_path
+                                ]
+                                
+                                logger.info(f"اجرای دستور FFmpeg: {' '.join(cmd)}")
+                                result = subprocess.run(
+                                    cmd,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    text=True
+                                )
+                                
+                                if result.returncode != 0:
+                                    logger.error(f"خطا در استخراج صدا با FFmpeg: {result.stderr}")
+                                elif os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+                                    logger.info(f"استخراج صدا با FFmpeg موفق: {audio_path}")
+                                    downloaded_file = audio_path  # جایگزینی فایل ویدیویی با فایل صوتی
+                                else:
+                                    logger.error(f"فایل صوتی ایجاد نشد یا خالی است: {audio_path}")
+                            except Exception as e:
+                                logger.error(f"خطا در اجرای FFmpeg: {e}")
+                        else:
+                            # اگر استخراج صدا موفق بود، فایل را جایگزین می‌کنیم
+                            downloaded_file = audio_path
                 
                 # افزودن به کش با کیفیت
                 cache_quality = "audio" if is_audio else quality
                 add_to_cache(url, downloaded_file, cache_quality)
                 logger.info(f"فایل با موفقیت دانلود شد (کیفیت {cache_quality}): {downloaded_file}")
-            else:
-                logger.error(f"دانلود با ماژول بهبود یافته ناموفق بود")
-                raise Exception("دانلود با ماژول بهبود یافته ناموفق بود")
                 
         except (ImportError, Exception) as e:
             logger.warning(f"خطا در استفاده از ماژول بهبود یافته: {e}")
