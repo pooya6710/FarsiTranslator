@@ -2261,21 +2261,20 @@ async def handle_download_option(update: Update, context: ContextTypes.DEFAULT_T
                 logger.info(f"جزئیات کامل گزینه انتخاب شده: {selected_option}")
                 
                 # تنظیم کیفیت صحیح بر اساس شماره گزینه (بدون وابستگی به محتوای options)
-                if download_type == "ig":
-                    # شماره گزینه به کیفیت مربوطه نگاشت شود
-                    quality_mapping = {
-                        0: "1080p",
-                        1: "720p",
-                        2: "480p",
-                        3: "360p",
-                        4: "240p",
-                        5: "audio"
-                    }
-                    
-                    # اصلاح کیفیت در selected_option
-                    if option_index in quality_mapping:
-                        selected_option['quality'] = quality_mapping[option_index]
-                        logger.info(f"کیفیت بر اساس شماره گزینه اصلاح شد: {selected_option['quality']}")
+                # شماره گزینه به کیفیت مربوطه نگاشت شود برای هر دو منبع یکسان است
+                quality_mapping = {
+                    0: "1080p",
+                    1: "720p",
+                    2: "480p",
+                    3: "360p",
+                    4: "240p",
+                    5: "audio"
+                }
+                
+                # اصلاح کیفیت در selected_option برای هر دو نوع (اینستاگرام و یوتیوب)
+                if option_index in quality_mapping:
+                    selected_option['quality'] = quality_mapping[option_index]
+                    logger.info(f"کیفیت بر اساس شماره گزینه اصلاح شد: {selected_option['quality']}")
                 
                 # هدایت به تابع دانلود مناسب با اطلاعات کامل گزینه
                 if download_type == "ig":
@@ -3093,6 +3092,12 @@ async def download_youtube_with_option(update: Update, context: ContextTypes.DEF
 async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, option_id: str) -> None:
     """
     دانلود ویدیوی یوتیوب
+    
+    Args:
+        update: آبجکت آپدیت تلگرام
+        context: کانتکست تلگرام
+        url: آدرس یوتیوب
+        option_id: شناسه گزینه انتخاب شده (می‌تواند نام کیفیت یا شماره باشد)
     """
     query = update.callback_query
     
@@ -3100,8 +3105,48 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         # ایجاد دانلودر یوتیوب
         downloader = YouTubeDownloader()
         
-        # تعیین اگر فایل صوتی درخواست شده است
-        is_audio_request = ('audio' in option_id.lower()) if isinstance(option_id, str) else False
+        # تعیین نوع درخواست و کیفیت بر اساس شماره گزینه یا محتوای آن
+        is_audio_request = False
+        format_option = "best"  # مقدار پیش‌فرض
+        quality_display = "بهترین کیفیت"
+        
+        logger.info(f"گزینه انتخاب شده برای دانلود یوتیوب: {option_id}")
+        
+        # بررسی اگر option_id یک عدد است
+        if option_id.isdigit():
+            # تبدیل به عدد برای راحتی کار
+            option_num = int(option_id)
+            
+            # نگاشت مستقیم شماره گزینه به کیفیت متناظر
+            # گزینه‌های یوتیوب معمولاً: 0: 1080p, 1: 720p, 2: 480p, 3: 360p, 4: 240p, 5: audio
+            if option_num == 0:
+                format_option = "137+140/bestvideo[height<=1080]+bestaudio/best"
+                quality_display = "کیفیت Full HD (1080p)"
+            elif option_num == 1:
+                format_option = "136+140/bestvideo[height<=720]+bestaudio/best"
+                quality_display = "کیفیت HD (720p)"
+            elif option_num == 2:
+                format_option = "135+140/bestvideo[height<=480]+bestaudio/best"
+                quality_display = "کیفیت متوسط (480p)"
+            elif option_num == 3:
+                format_option = "134+140/bestvideo[height<=360]+bestaudio/best"
+                quality_display = "کیفیت پایین (360p)"
+            elif option_num == 4:
+                format_option = "133+140/bestvideo[height<=240]+bestaudio/best"
+                quality_display = "کیفیت خیلی پایین (240p)"
+            elif option_num == 5:
+                format_option = "bestaudio"
+                is_audio_request = True
+                quality_display = "فقط صدا (MP3)"
+                
+            logger.info(f"کیفیت انتخاب شده بر اساس شماره گزینه {option_num}: {format_option}")
+        
+        # تشخیص صوتی از روی محتوای option_id
+        elif 'audio' in option_id.lower():
+            is_audio_request = True
+            format_option = "bestaudio"
+            quality_display = "فقط صدا (MP3)"
+            logger.info(f"درخواست دانلود صوتی تشخیص داده شد: {option_id}")
         
         if is_audio_request:
             logger.info(f"درخواست دانلود صوتی از یوتیوب: {url[:30]}...")
@@ -3166,8 +3211,11 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             
         else:
             # دانلود ویدیو با گزینه انتخاب شده
-            logger.info(f"دانلود ویدیوی یوتیوب با گزینه {option_id}: {url[:30]}...")
-            downloaded_file = await downloader.download_video(url, option_id)
+            logger.info(f"دانلود ویدیوی یوتیوب با گزینه {format_option}: {url[:30]}...")
+            downloaded_file = await downloader.download_video(url, format_option)
+            
+            # بروزرسانی متغیر کیفیت برای استفاده در caption
+            option_id = format_option
             
             # تشخیص فایل صوتی از روی پسوند
             is_audio = downloaded_file.endswith(('.mp3', '.m4a', '.aac', '.wav'))
