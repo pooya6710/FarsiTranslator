@@ -723,10 +723,11 @@ class InstagramDownloader:
             مسیر فایل دانلود شده یا None در صورت خطا
         """
         try:
-            # بررسی کش
-            cached_file = get_from_cache(url)
+            # بررسی کش با در نظر گرفتن کیفیت
+            cache_key = f"{url}_{quality}"
+            cached_file = get_from_cache(cache_key)
             if cached_file:
-                logger.info(f"فایل از کش برگردانده شد: {cached_file}")
+                logger.info(f"فایل از کش برگردانده شد (کیفیت {quality}): {cached_file}")
                 return cached_file
                 
             # استخراج کد کوتاه پست
@@ -808,8 +809,8 @@ class InstagramDownloader:
             # پاکسازی دایرکتوری موقت
             shutil.rmtree(temp_dir, ignore_errors=True)
             
-            # افزودن به کش
-            add_to_cache(url, final_path)
+            # افزودن به کش با کیفیت
+            add_to_cache(cache_key, final_path)
             
             logger.info(f"دانلود با instaloader موفق بود: {final_path}")
             return final_path
