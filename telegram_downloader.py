@@ -1731,6 +1731,14 @@ async def process_instagram_url(update: Update, context: ContextTypes.DEFAULT_TY
         for i, option in enumerate(options):
             # ایجاد شناسه کوتاه برای کاهش طول callback_data
             option_short_id = f"{i}"
+            # افزودن شماره به نمایش دکمه برای نمایش بهتر
+            quality_text = option.get('quality', 'نامشخص')
+            default_label = f"کیفیت {quality_text}"
+            display_name = option.get('display_name', default_label)
+            display_label = f"{i+1}. {display_name}"
+            
+            # ثبت در لاگ برای اطمینان از صحت داده‌ها
+            logger.info(f"گزینه {i}: کیفیت={option.get('quality', 'نامشخص')}, نمایش={display_label}")
             
             # ذخیره اطلاعات گزینه برای استفاده بعدی
             if user_id not in user_download_data:
@@ -1740,16 +1748,15 @@ async def process_instagram_url(update: Update, context: ContextTypes.DEFAULT_TY
                 
             user_download_data[user_id]['option_map'][option_short_id] = option
             
-            # دکمه با callback_data کوتاه‌تر
+            # دکمه با callback_data کوتاه‌تر - اصلاح شده با نمایش شماره
             button = InlineKeyboardButton(
-                option.get("display_name", f"کیفیت {option.get('quality', 'نامشخص')}"),
+                display_label,
                 callback_data=f"dl_ig_{option_short_id}_{url_id}"
             )
             
             # تفکیک دکمه‌ها بر اساس نوع
             if option.get('type') == 'audio' and "audio" in option.get("quality", "").lower():
                 audio_buttons.append([button])
-
             else:
                 video_buttons.append([button])
         
@@ -2242,9 +2249,33 @@ async def handle_download_option(update: Update, context: ContextTypes.DEFAULT_T
             options = option_cache[url_id]
             option_index = int(option_id) if option_id.isdigit() else -1
             
+            # بررسی و لاگ‌گیری دقیق از اطلاعات گزینه
+            logger.info(f"شماره گزینه: {option_index}, تعداد گزینه‌ها: {len(options)}")
+            logger.info(f"گزینه‌های موجود: {[opt.get('quality', 'نامشخص') for opt in options]}")
+            
             if 0 <= option_index < len(options):
                 selected_option = options[option_index]
                 logger.info(f"گزینه انتخاب شده: {selected_option.get('quality', 'نامشخص')}")
+                
+                # لاگ اطلاعات کامل گزینه برای عیب‌یابی
+                logger.info(f"جزئیات کامل گزینه انتخاب شده: {selected_option}")
+                
+                # تنظیم کیفیت صحیح بر اساس شماره گزینه (بدون وابستگی به محتوای options)
+                if download_type == "ig":
+                    # شماره گزینه به کیفیت مربوطه نگاشت شود
+                    quality_mapping = {
+                        0: "1080p",
+                        1: "720p",
+                        2: "480p",
+                        3: "360p",
+                        4: "240p",
+                        5: "audio"
+                    }
+                    
+                    # اصلاح کیفیت در selected_option
+                    if option_index in quality_mapping:
+                        selected_option['quality'] = quality_mapping[option_index]
+                        logger.info(f"کیفیت بر اساس شماره گزینه اصلاح شد: {selected_option['quality']}")
                 
                 # هدایت به تابع دانلود مناسب با اطلاعات کامل گزینه
                 if download_type == "ig":
@@ -2305,7 +2336,36 @@ async def download_instagram(update: Update, context: ContextTypes.DEFAULT_TYPE,
             is_audio = True
             display_name = "فقط صدا (MP3)"
             logger.info(f"درخواست صوتی تشخیص داده شد: {option_id}")
-        # بررسی نوع دانلود از نظر کیفیت - به ترتیب از بالاترین به پایین‌ترین کیفیت
+        # بررسی اگر option_id یک عدد است - این روش درست‌تر است
+        elif option_id.isdigit():
+            # تبدیل به عدد برای راحتی کار
+            option_num = int(option_id)
+            
+            # نگاشت مستقیم شماره گزینه به کیفیت متناظر
+            # گزینه‌های اینستاگرام طبق تعریف get_download_options:
+            # 0: 1080p, 1: 720p, 2: 480p, 3: 360p, 4: 240p, 5: audio
+            if option_num == 0:
+                quality = "1080p"
+                display_name = "کیفیت Full HD (1080p)"
+            elif option_num == 1:
+                quality = "720p"
+                display_name = "کیفیت HD (720p)"
+            elif option_num == 2:
+                quality = "480p"
+                display_name = "کیفیت متوسط (480p)"
+            elif option_num == 3:
+                quality = "360p"
+                display_name = "کیفیت پایین (360p)"
+            elif option_num == 4:
+                quality = "240p"
+                display_name = "کیفیت خیلی پایین (240p)"
+            elif option_num == 5:
+                quality = "audio"
+                is_audio = True
+                display_name = "فقط صدا (MP3)"
+            logger.info(f"درخواست کیفیت براساس شماره گزینه {option_num}: {quality}")
+            
+        # نسخه قدیمی - تشخیص بر اساس نام کیفیت در option_id
         elif "1080p" in option_id:
             quality = "1080p"
             is_audio = False  # تأکید بر درخواست ویدیویی
@@ -2334,62 +2394,86 @@ async def download_instagram(update: Update, context: ContextTypes.DEFAULT_TYPE,
         elif "low" in option_id:
             quality = "240p"  # استفاده از فرمت جدید برای کیفیت پایین
             display_name = "کیفیت خیلی پایین (240p)"
-        elif option_id.isdigit():
-            # اگر به عنوان یک عدد ارسال شده باشد (برای سازگاری با قبل)
-            option_num = int(option_id)
-            if option_num == 1:
-                quality = "480p"  # استفاده از فرمت جدید برای کیفیت متوسط
-                display_name = "کیفیت متوسط (480p)"
-            elif option_num == 2:
-                quality = "240p"  # استفاده از فرمت جدید برای کیفیت پایین
-                display_name = "کیفیت خیلی پایین (240p)"
-            elif option_num == 3:
-                quality = "audio"
-                is_audio = True
+# این بخش حذف شده است زیرا بالاتر شرط option_id.isdigit وجود دارد و باعث تکرار می‌شود
             
         logger.info(f"دانلود اینستاگرام با کیفیت: {quality}, صوتی: {is_audio}")
         
-        # دانلود ویدیو با بهترین کیفیت
-        best_quality_file = await downloader.download_post(url, "best")
+        # 1. دانلود ویدیو با بهترین کیفیت
+        best_quality_file = None
+        
+        # بررسی کش برای بهترین کیفیت
+        cached_best = get_from_cache(f"{url}_best")
+        if cached_best and os.path.exists(cached_best):
+            logger.info(f"فایل با بهترین کیفیت از کش برگردانده شد: {cached_best}")
+            best_quality_file = cached_best
+        else:
+            # دانلود با بهترین کیفیت
+            best_quality_file = await downloader.download_post(url, "best")
+            if best_quality_file and os.path.exists(best_quality_file):
+                # افزودن به کش بهترین کیفیت
+                add_to_cache(f"{url}_best", best_quality_file)
+                logger.info(f"فایل با بهترین کیفیت دانلود شد: {best_quality_file}")
         
         if not best_quality_file or not os.path.exists(best_quality_file):
             await query.edit_message_text(ERROR_MESSAGES["download_failed"])
             return
-            
-        # پیام در حال پردازش
-        await query.edit_message_text(STATUS_MESSAGES["processing"])
         
-        try:
-            # استفاده از تابع convert_video_quality برای تبدیل کیفیت
-            downloaded_file = best_quality_file
+        # 2. اگر کیفیت انتخابی "best" است، همان فایل را برگردان
+        downloaded_file = best_quality_file
+        
+        # 3. تبدیل کیفیت برای سایر موارد
+        if quality != "best" or is_audio:
+            # پیام در حال پردازش
+            await query.edit_message_text(STATUS_MESSAGES["processing"])
             
-            # اگر کیفیت متفاوت از "best" است یا صوتی است، تبدیل کیفیت دهید
-            if quality != "best" or is_audio:
-                try:
-                    from telegram_fixes import convert_video_quality
-                    logger.info(f"تبدیل کیفیت ویدیو به {quality}, صوتی: {is_audio}")
-                    
-                    converted_file = convert_video_quality(
-                        video_path=best_quality_file, 
-                        quality=quality,
-                        is_audio_request=is_audio
-                    )
-                    
-                    if converted_file and os.path.exists(converted_file):
-                        downloaded_file = converted_file
-                        logger.info(f"تبدیل موفق: {downloaded_file}")
-                        # افزودن به کش
-                        add_to_cache(url, downloaded_file, quality)
-                    else:
-                        logger.warning("تبدیل ناموفق بود، استفاده از فایل اصلی")
-                except ImportError as ie:
-                    logger.error(f"ماژول telegram_fixes یافت نشد: {str(ie)}")
-                except Exception as e:
-                    logger.error(f"خطا در تبدیل کیفیت: {str(e)}")
-        except Exception as e:
-            logger.error(f"خطا در مرحله پردازش: {str(e)}")
-            # در صورت خطا از فایل اصلی استفاده می‌کنیم
-            downloaded_file = best_quality_file
+            try:
+                # بررسی کش برای کیفیت درخواستی
+                cached_quality = get_from_cache(f"{url}_{quality}")
+                if cached_quality and os.path.exists(cached_quality):
+                    logger.info(f"فایل با کیفیت {quality} از کش برگردانده شد: {cached_quality}")
+                    downloaded_file = cached_quality
+                else:
+                    # اجرای تبدیل کیفیت
+                    try:
+                        from telegram_fixes import convert_video_quality
+                        logger.info(f"تبدیل کیفیت ویدیو به {quality}, صوتی: {is_audio}")
+                        
+                        # انجام تبدیل
+                        converted_file = convert_video_quality(
+                            video_path=best_quality_file, 
+                            quality=quality,
+                            is_audio_request=is_audio
+                        )
+                        
+                        if converted_file and os.path.exists(converted_file):
+                            downloaded_file = converted_file
+                            logger.info(f"تبدیل موفق: {downloaded_file}")
+                            # افزودن به کش
+                            add_to_cache(f"{url}_{quality}", downloaded_file)
+                        else:
+                            logger.warning("تبدیل ناموفق بود، استفاده از فایل اصلی")
+                    except ImportError as ie:
+                        logger.error(f"ماژول telegram_fixes یافت نشد: {str(ie)}")
+                        # تلاش برای استفاده از روش دیگر
+                        if is_audio and os.path.exists(best_quality_file):
+                            try:
+                                logger.info("تلاش برای استخراج صوت با ماژول audio_processing")
+                                from audio_processing import extract_audio
+                                audio_path = extract_audio(best_quality_file)
+                                if audio_path and os.path.exists(audio_path):
+                                    downloaded_file = audio_path
+                                    logger.info(f"استخراج صدا با audio_processing موفق: {audio_path}")
+                                    # افزودن به کش
+                                    add_to_cache(f"{url}_audio", audio_path)
+                                else:
+                                    logger.warning("استخراج صدا ناموفق بود، استفاده از فایل اصلی")
+                            except ImportError:
+                                logger.error("ماژول audio_processing در دسترس نیست")
+                    except Exception as e:
+                        logger.error(f"خطا در تبدیل کیفیت: {str(e)}")
+            except Exception as e:
+                logger.error(f"خطا در مرحله پردازش: {str(e)}")
+                # در صورت خطا از فایل اصلی استفاده می‌کنیم
             
         if not downloaded_file or not os.path.exists(downloaded_file):
             await query.edit_message_text(ERROR_MESSAGES["download_failed"])

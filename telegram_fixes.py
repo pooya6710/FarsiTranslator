@@ -513,26 +513,53 @@ def convert_video_quality(video_path: str, quality: str = "720p", is_audio_reque
         # ⚠️ اینجا مطمئن می‌شویم که درخواست ویدیویی است، نه صوتی
         logger.info(f"درخواست تبدیل کیفیت ویدیو به {quality}")
         
-        # تعیین ارتفاع برای هر کیفیت
+        # تعیین ارتفاع برای هر کیفیت - با اصلاحات دقیق برای اطمینان از انطباق کامل
         quality_heights = {
             "1080p": 1080, 
             "720p": 720, 
             "480p": 480, 
             "360p": 360, 
-            "240p": 240
+            "240p": 240,
+            "medium": 480,  # اطمینان از پشتیبانی کیفیت‌های مبتنی بر نام
+            "low": 240
         }
         
-        # اگر کیفیت نامعتبر است، از 720p استفاده کن
+        # اگر کیفیت نامعتبر است، بررسی دقیق‌تر انجام می‌دهیم
         if quality not in quality_heights:
-            logger.warning(f"کیفیت {quality} پشتیبانی نمی‌شود. استفاده از 720p به جای آن.")
-            quality = "720p"
+            # بررسی برای کیفیت‌های عددی با الگوهای مختلف
+            if "1080" in quality or "full" in quality.lower() or "hd+" in quality.lower():
+                logger.info(f"کیفیت {quality} به 1080p نگاشت شد.")
+                quality = "1080p"
+            elif "720" in quality or "hd" in quality.lower():
+                logger.info(f"کیفیت {quality} به 720p نگاشت شد.")
+                quality = "720p"
+            elif "480" in quality or "sd" in quality.lower() or "medium" in quality.lower():
+                logger.info(f"کیفیت {quality} به 480p نگاشت شد.")
+                quality = "480p"
+            elif "360" in quality or "low" in quality.lower():
+                logger.info(f"کیفیت {quality} به 360p نگاشت شد.")
+                quality = "360p"
+            elif "240" in quality or "very" in quality.lower() or "lowest" in quality.lower():
+                logger.info(f"کیفیت {quality} به 240p نگاشت شد.")
+                quality = "240p"
+            else:
+                # اگر هیچ تطابقی پیدا نشد، از کیفیت 720p استفاده می‌کنیم
+                logger.warning(f"کیفیت {quality} پشتیبانی نمی‌شود. استفاده از 720p به جای آن.")
+                quality = "720p"
         
+        # اختصاص ارتفاع هدف بر اساس کیفیت نهایی
         target_height = quality_heights[quality]
+        logger.info(f"کیفیت نهایی انتخاب شده: {quality} با ارتفاع {target_height}")
         
         # مسیر فایل خروجی - اضافه کردن پیشوند video برای تأکید بر نوع فایل
         file_dir = os.path.dirname(video_path)
         file_name, file_ext = os.path.splitext(os.path.basename(video_path))
         converted_file = os.path.join(file_dir, f"{file_name}_video_{quality}{file_ext}")
+        
+        # بررسی وجود فایل از قبل
+        if os.path.exists(converted_file):
+            logger.info(f"فایل تبدیل شده از قبل وجود دارد: {converted_file}")
+            return converted_file
         
         # بررسی ارتفاع فعلی ویدیو
         ffprobe_cmd = [
@@ -574,20 +601,19 @@ def convert_video_quality(video_path: str, quality: str = "720p", is_audio_reque
             return converted_file
         
         # محاسبه عرض جدید با حفظ نسبت تصویر
-        target_width = "trunc(oh*a/2)*2"  # فرمول پیش‌فرض برای حفظ نسبت تصویر و اطمینان از زوج بودن عرض
+        # استفاده از فرمول متفاوت برای تضمین کیفیت بهتر و عدم تغییر نسبت تصویر
+        scale_filter = f'scale=-2:{target_height}:force_original_aspect_ratio=decrease,format=yuv420p'
         
-        # اگر ابعاد اصلی را داریم، محاسبه دقیق‌تر انجام می‌دهیم
+        # اگر ابعاد اصلی را داریم، اطلاعات آن را نمایش می‌دهیم
         if original_width > 0 and original_height > 0:
             aspect_ratio = original_width / original_height
             calculated_width = int(target_height * aspect_ratio)
             # اطمینان از زوج بودن عرض
             if calculated_width % 2 != 0:
                 calculated_width += 1
-            target_width = str(calculated_width)
-            logger.info(f"عرض محاسبه شده برای کیفیت {quality}: {target_width}")
-        
-        # تنظیم زنجیره فیلتر برای حل مشکل عرض فرد
-        scale_filter = f'scale={target_width}:{target_height},format=yuv420p'
+            logger.info(f"عرض محاسبه شده برای کیفیت {quality}: {calculated_width} (نسبت تصویر: {aspect_ratio:.2f})")
+            
+        logger.info(f"استفاده از فیلتر مقیاس بندی: {scale_filter}")
         
         # دستور ffmpeg سراسری با پارامترهای بهینه
         cmd = [
@@ -690,12 +716,16 @@ def fallback_convert_video(video_path: str, quality: str) -> str:
         file_name, file_ext = os.path.splitext(os.path.basename(video_path))
         converted_file = os.path.join(file_dir, f"{file_name}_fallback_{quality}{file_ext}")
         
-        # استفاده از دستور ساده‌تر ffmpeg با پارامترهای حداقلی
+        # استفاده از دستور ساده‌تر ffmpeg با پارامترهای حداقلی اما مطمئن
         cmd = [
             '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg', 
             '-i', video_path, 
-            '-vf', f'scale=-2:{target_height}',  # فقط ارتفاع را تنظیم می‌کنیم، عرض متناسب با نسبت تصویر تنظیم می‌شود
+            '-vf', f'scale=-2:{target_height}:force_original_aspect_ratio=decrease,format=yuv420p',  # حفظ نسبت تصویر با دقت بالا
+            '-c:v', 'libx264',                    # استفاده از کدک قدرتمند
             '-c:a', 'copy',                       # فقط کپی صدا
+            '-crf', '23',                         # کیفیت مناسب
+            '-preset', 'veryfast',                # سرعت بالا
+            '-max_muxing_queue_size', '9999',     # افزایش حداکثر صف برای جلوگیری از خطا
             '-y',                                 # جایگزینی فایل موجود
             converted_file
         ]
