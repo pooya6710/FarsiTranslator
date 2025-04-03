@@ -3188,23 +3188,23 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             # گزینه‌های یوتیوب معمولاً: 0: 1080p, 1: 720p, 2: 480p, 3: 360p, 4: 240p, 5: audio
             if option_num == 0:
                 # روش ایمن‌تر با تضمین کیفیت 1080p و جلوگیری از نمایش صوتی فقط
-                format_option = "137+140/bestvideo[height=1080]+bestaudio/best[height=1080]/best"
+                format_option = "bestvideo[height=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=1080]+bestaudio/best[height=1080][ext=mp4]/best[height=1080]/best"
                 quality = "1080p"
                 quality_display = "کیفیت Full HD (1080p)"
             elif option_num == 1:
-                format_option = "136+140/bestvideo[height=720]+bestaudio/best[height=720]/best" 
+                format_option = "bestvideo[height=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=720]+bestaudio/best[height=720][ext=mp4]/best[height=720]/best"
                 quality = "720p"
                 quality_display = "کیفیت HD (720p)"
             elif option_num == 2:
-                format_option = "135+140/bestvideo[height=480]+bestaudio/best[height=480]/best"
+                format_option = "bestvideo[height=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=480]+bestaudio/best[height=480][ext=mp4]/best[height=480]/best"
                 quality = "480p"
                 quality_display = "کیفیت متوسط (480p)"
             elif option_num == 3:
-                format_option = "134+140/bestvideo[height=360]+bestaudio/best[height=360]/best"
+                format_option = "bestvideo[height=360][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=360]+bestaudio/best[height=360][ext=mp4]/best[height=360]/best"
                 quality = "360p"
                 quality_display = "کیفیت پایین (360p)"
             elif option_num == 4:
-                format_option = "133+140/bestvideo[height=240]+bestaudio/best[height=240]/best"
+                format_option = "bestvideo[height=240][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=240]+bestaudio/best[height=240][ext=mp4]/best[height=240]/best"
                 quality = "240p"
                 quality_display = "کیفیت خیلی پایین (240p)"
             elif option_num == 5:
@@ -3304,10 +3304,47 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             # بروزرسانی متغیر کیفیت برای استفاده در caption
             option_id = format_option
             
-            # تشخیص فایل صوتی از روی پسوند (با بررسی مقدار None)
+            # مقدار is_audio را همیشه به False تنظیم می‌کنیم برای درخواست‌های ویدیویی
+            # زیرا وقتی اینجا هستیم یعنی کاربر ویدیو درخواست کرده، نه صدا
             is_audio = False
-            if downloaded_file:  # فقط اگر مقدار None نباشد
-                is_audio = downloaded_file.endswith(('.mp3', '.m4a', '.aac', '.wav'))
+            
+            # بررسی اضافی برای اطمینان از صحت فرمت ویدیو
+            if downloaded_file and downloaded_file.endswith(('.mp3', '.m4a', '.aac', '.wav')) and not downloaded_file.endswith(('.mp4', '.webm', '.mkv')):
+                # اگر فایل صوتی باشد، آن را به MP4 تبدیل می‌کنیم (فایل صوتی با تصویر ثابت)
+                logger.warning(f"فایل دانلود شده صوتی است، تبدیل به ویدیو: {downloaded_file}")
+                
+                # نام فایل ویدیویی جدید
+                video_path = downloaded_file.rsplit(".", 1)[0] + "_video.mp4"
+                
+                # تبدیل به ویدیو با استفاده از ffmpeg
+                cmd = [
+                    '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
+                    '-i', downloaded_file,
+                    '-c:a', 'copy',
+                    '-f', 'lavfi',
+                    '-i', 'color=c=black:s=1280x720',
+                    '-shortest',
+                    '-vf', "drawtext=text='یوتیوب':fontcolor=white:fontsize=30:x=(w-text_w)/2:y=(h-text_h)/2",
+                    '-c:v', 'libx264',
+                    '-tune', 'stillimage',
+                    '-pix_fmt', 'yuv420p',
+                    '-shortest',
+                    '-y',
+                    video_path
+                ]
+                
+                try:
+                    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    if result.returncode == 0 and os.path.exists(video_path):
+                        downloaded_file = video_path
+                        is_audio = False
+                        logger.info(f"تبدیل صوت به ویدیو موفق: {video_path}")
+                    else:
+                        logger.error(f"خطا در تبدیل صوت به ویدیو: {result.stderr}")
+                except Exception as e:
+                    logger.error(f"خطا در اجرای FFmpeg برای تبدیل صوت به ویدیو: {e}")
+                    # اگر تبدیل با خطا مواجه شد، از همان فایل صوتی استفاده می‌کنیم
+                    is_audio = True
             
         if not downloaded_file or not os.path.exists(downloaded_file):
             await query.edit_message_text(ERROR_MESSAGES["download_failed"])
@@ -3325,8 +3362,9 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         # تعیین نوع فایل و نحوه ارسال
         is_playlist = 'playlist' in option_id and downloaded_file.endswith('.zip')
         
-        # بررسی مجدد نوع فایل براساس پسوند
-        if not is_audio and not is_playlist:
+        # بررسی مجدد نوع فایل براساس پسوند - فقط برای مواردی که is_audio از قبل True نیست
+        # و فقط برای فایل‌هایی که ویدیویی نیستند
+        if not is_audio and not is_playlist and downloaded_file and not downloaded_file.endswith(('.mp4', '.webm', '.mkv', '.avi', '.mov')):
             is_audio = downloaded_file.endswith(('.mp3', '.m4a', '.aac', '.wav'))
         
         # ارسال فایل بر اساس نوع آن
