@@ -3626,7 +3626,9 @@ def ping():
     return "Bot is alive!"
 
 def run_flask():
-    flask_app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+    from werkzeug.serving import WSGIServer
+    http_server = WSGIServer(('0.0.0.0', 5000), flask_app)
+    http_server.serve_forever()
 
 async def main():
     """راه‌اندازی ربات تلگرام و سرور فلسک"""
