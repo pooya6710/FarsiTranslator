@@ -8,3 +8,6 @@ restartPolicyType = "always"
 
 [nixpacks]
 aptPackages = ["ffmpeg", "python3-dev"]
+
+[variables]
+TELEGRAM_BOT_TOKEN = "placeholder_token" # این متغیر با مقدار واقعی در داشبورد Railway جایگزین خواهد شد
