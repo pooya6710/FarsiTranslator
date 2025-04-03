@@ -3486,7 +3486,18 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
 def clean_temp_files():
     """پاکسازی فایل‌های موقت قدیمی"""
     try:
-        # حذف فایل‌های موقت قدیمی (بیشتر از 24 ساعت)
+        # استفاده از بهینه‌ساز کش در صورت در دسترس بودن
+        try:
+            from cache_optimizer import run_optimization
+            run_optimization()
+            logger.info("پاکسازی با استفاده از بهینه‌ساز کش انجام شد")
+            return
+        except ImportError:
+            logger.info("ماژول بهینه‌ساز کش یافت نشد، استفاده از روش پاکسازی استاندارد...")
+        except Exception as e:
+            logger.warning(f"خطا در استفاده از بهینه‌ساز کش: {e}")
+        
+        # روش پاکسازی قدیمی در صورت عدم وجود بهینه‌ساز
         now = time.time()
         cutoff = now - (24 * 3600)  # 24 ساعت
         

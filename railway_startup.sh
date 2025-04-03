@@ -49,6 +49,19 @@ echo "Checking for any remaining aria2 files in Python packages..."
 find "$SITE_PACKAGES" -type f -name "*aria2*" -delete 2>/dev/null ||:
 grep -r "aria2" "$SITE_PACKAGES/yt_dlp" --include="*.py" 2>/dev/null ||:
 
+echo "======= Optimizer and Performance Improvement ======="
+# اجرای بهینه‌ساز کش
+if [ -f "cache_optimizer.py" ]; then
+    echo "Running cache optimizer..."
+    python cache_optimizer.py
+fi
+
+# اجرای بهینه‌ساز yt-dlp
+if [ -f "yt_dlp_optimizer.py" ]; then
+    echo "Running yt-dlp optimizer..."
+    python yt_dlp_optimizer.py
+fi
+
 echo "======= Starting the Telegram Bot ======="
 # اجرای ربات تلگرام
 python telegram_downloader.py
