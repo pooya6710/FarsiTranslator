@@ -4,15 +4,3 @@ yt-dlp>=2023.11.16
 instaloader>=4.10.1
 requests>=2.31.0
 psycopg2-binary>=2.9.9
-email_validator
-flask
-flask-sqlalchemy
-gunicorn
-psycopg2-binary
-moviepy
-pydub
-pytelegrambotapi
-python-telegram-bot
-pytube
-requests
-telebot
