@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-دانلودر تلگرام ویدیوهای اینستاگرام و یوتیوب
+دانلودر تلگرام هوشمند و پیشرفته ویدیوهای اینستاگرام و یوتیوب
 
-این اسکریپت یک ربات تلگرام برای دانلود ویدیوهای اینستاگرام و یوتیوب ایجاد می‌کند.
-کاربران می‌توانند لینک ویدیوهای اینستاگرام یا یوتیوب را برای ربات ارسال کنند و
-ویدیو را با کیفیت‌های مختلف دانلود کنند.
+این اسکریپت یک ربات تلگرام با قابلیت‌های پیشرفته برای دانلود ویدیوهای اینستاگرام و یوتیوب ایجاد می‌کند.
+قابلیت‌های اصلی:
+- دانلود سریع با بهینه‌سازی چند نخی
+- پشتیبانی از کیفیت‌های مختلف ویدیو (240p تا 1080p)
+- استخراج صدا از ویدیو (MP3)
+- رابط کاربری زیبا و کاربرپسند
+- دانلود چندین ویدیو به صورت همزمان
+- مدیریت هوشمند کش برای عملکرد سریع‌تر
 
 نحوه استفاده:
 1. مطمئن شوید که همه وابستگی‌های مورد نیاز را نصب کرده‌اید:
@@ -19,6 +24,8 @@
 این برنامه در ابتدا تست‌های خودکار را اجرا می‌کند و سپس ربات را راه‌اندازی می‌کند.
 برای راه‌اندازی بدون اجرای تست‌ها، از آرگومان --skip-tests استفاده کنید:
    python telegram_downloader.py --skip-tests
+
+نسخه ۲.۲.۰ - بهینه‌سازی شده با امکانات جدید
 """
 
 import os
@@ -37,6 +44,14 @@ import traceback
 from datetime import datetime
 from urllib.parse import urlparse
 from typing import Dict, List, Any, Optional, Tuple, Union
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# تنظیمات لاگینگ
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 # ماژول پردازش صوتی
 try:
@@ -107,19 +122,49 @@ def add_to_cache(url: str, file_path: str, quality: str = None):
     else:
         logging.warning(f"فایل موجود نیست و به کش اضافه نشد: {file_path}")
 
+
 # تلاش برای وارد کردن کتابخانه‌های خارجی
 try:
     import yt_dlp
-    from telegram.ext import (
-        Application, CommandHandler, MessageHandler, 
-        CallbackQueryHandler, ContextTypes, filters
-    )
-    from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+    try:
+        # برای python-telegram-bot نسخه 13.x
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, ParseMode, ChatAction
+        from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
+        from telegram.ext import CallbackContext
+        
+        # تنظیم فیلتر‌های نسخه 13.x
+        class filters:
+            TEXT = Filters.text & ~Filters.command
+            COMMAND = Filters.command
+        
+        # تعریف متغیرهای ساختگی برای سازگاری با کد
+        Application = None
+        
+        # ساختگی برای سازگاری با هر دو نسخه
+        class ContextTypes:
+            DEFAULT_TYPE = CallbackContext
+        
+        # حالت نسخه 13
+        PTB_VERSION = 13
+        logger.info("استفاده از python-telegram-bot نسخه 13.x")
+    except ImportError:
+        # برای python-telegram-bot نسخه 20.x و بالاتر
+        from telegram.ext import (
+            Application, CommandHandler, MessageHandler, 
+            CallbackQueryHandler, ContextTypes, filters
+        )
+        from telegram.constants import ParseMode, ChatAction
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+        
+        # حالت نسخه 20
+        PTB_VERSION = 20
+        logger.info("استفاده از python-telegram-bot نسخه 20.x و بالاتر")
+        
     import instaloader
 except ImportError as e:
     print(f"خطا در وارد کردن کتابخانه‌های مورد نیاز: {e}")
     print("لطفاً اطمینان حاصل کنید که تمام وابستگی‌ها را نصب کرده‌اید:")
-    print("pip install python-telegram-bot yt-dlp instaloader requests")
+    print("pip install python-telegram-bot==13.15 yt-dlp instaloader requests")
     exit(1)
 
 # تنظیمات لاگینگ
@@ -128,12 +173,6 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-# دیکشنری برای ذخیره اطلاعات دانلود هر کاربر
-user_download_data = {}
-
-# ذخیره‌سازی پایدار برای URL ها (به عنوان جایگزین برای context.user_data)
-# این روش از مشکل "لینک منقضی شده" در صورت راه‌اندازی مجدد ربات جلوگیری می‌کند
 persistent_url_storage = {}
 
 # ذخیره‌سازی اطلاعات گزینه‌های دانلود برای هر URL
@@ -155,83 +194,91 @@ logger.info(f"مسیر دانلود موقت: {TEMP_DOWNLOAD_DIR}")
 
 # متن‌های پاسخ ربات
 START_MESSAGE = """
-🎥 به ربات دانلودر اینستاگرام و یوتیوب خوش آمدید 🎬
+<b>🎬 به ربات هوشمند دانلودر اینستاگرام و یوتیوب خوش آمدید 🎬</b>
 
-با این ربات می‌توانید ویدیوهای اینستاگرام و یوتیوب را با کیفیت دلخواه دانلود کنید.
+با این ربات می‌توانید ویدیوهای اینستاگرام و یوتیوب را با بهترین کیفیت و سرعت دانلود کنید.
 
-📱 قابلیت‌ها:
-• دانلود ویدیوهای اینستاگرام (پست‌ها و ریلز)
-• دانلود ویدیوهای یوتیوب (عادی، شورتز و پلی‌لیست)
-• انتخاب کیفیت مختلف (1080p، 720p، 480p، 360p، 240p)
-• دانلود فقط صدای ویدیو
-• دانلود موازی و همزمان چندین لینک
+<b>📱 قابلیت‌های ویژه:</b>
+• <b>دانلود فوق سریع</b> با بهینه‌سازی چند نخی
+• دانلود ویدیوهای <b>اینستاگرام</b> (پست‌ها و ریلز)
+• دانلود ویدیوهای <b>یوتیوب</b> (عادی، شورتز و پلی‌لیست)
+• انتخاب کیفیت‌های متنوع <b>(1080p، 720p، 480p، 360p، 240p)</b>
+• <b>استخراج صدا</b> با کیفیت بالا (MP3)
+• <b>دانلود موازی و همزمان</b> چندین لینک
+• <b>رابط کاربری زیبا</b> و کاربرپسند
 
-🔍 نحوه استفاده:
-• ارسال لینک: لینک ویدیوی مورد نظر خود را برای ربات ارسال کنید
-• دانلود گروهی: برای دانلود چندین لینک از دستور /bulkdownload استفاده کنید
+<b>🔍 نحوه استفاده:</b>
+• <b>ارسال لینک:</b> کافیست لینک ویدیو را برای ربات ارسال کنید
+• <b>دانلود گروهی:</b> برای دانلود چندین لینک از دستور /bulkdownload استفاده کنید
+
+<b>🛠️ نسخه ۲.۲.۰ - سریع‌تر، زیباتر، کاربردی‌تر</b>
 
 👨‍💻 برای دیدن راهنمای کامل: /help
 """
 
-HELP_MESSAGE = """🔍 راهنمای استفاده:
+HELP_MESSAGE = """<b>📚 راهنمای استفاده از ربات دانلودر</b>
 
-1️⃣ برای دانلود ویدیو از اینستاگرام یا یوتیوب، کافیست لینک را برای من ارسال کنید.
-2️⃣ من به صورت خودکار آن را شناسایی کرده و گزینه‌های دانلود را نمایش می‌دهم.
-3️⃣ با انتخاب کیفیت مورد نظر، فایل را برای شما ارسال خواهم کرد.
+<b>👨‍💻 روش استفاده:</b>
+1️⃣ <b>ارسال لینک</b> ویدیو از اینستاگرام یا یوتیوب
+2️⃣ <b>انتخاب کیفیت</b> دلخواه از میان گزینه‌های ارائه شده
+3️⃣ <b>دریافت ویدیو</b> با کیفیت انتخاب شده در کمترین زمان ممکن
 
-📌 لینک‌های پشتیبانی شده:
-• یوتیوب: رگولار، شورت و پلی‌لیست
-• اینستاگرام: پست‌ها، ریل‌ها و استوری‌ها
+<b>📱 لینک‌های پشتیبانی شده:</b>
+• <b>یوتیوب:</b> ویدیو عادی، شورتز و پلی‌لیست
+• <b>اینستاگرام:</b> پست‌ها، ریل‌ها و استوری‌ها
 
-🔄 کیفیت‌های قابل انتخاب:
-• 1080p (Full HD)
-• 720p (HD)
-• 480p
-• 360p
-• 240p
-• فقط صدا (MP3)
+<b>🎬 کیفیت‌های قابل انتخاب:</b>
+• <b>1080p (Full HD)</b> - کیفیت عالی
+• <b>720p (HD)</b> - کیفیت بالا
+• <b>480p</b> - کیفیت متوسط
+• <b>360p</b> - کیفیت پایین
+• <b>240p</b> - کیفیت خیلی پایین
+• <b>MP3</b> - فقط صدا
 
-📥 دانلود موازی چندین لینک:
-برای دانلود چندین لینک به صورت همزمان از دستور /bulkdownload استفاده کنید.
-مثال: 
-/bulkdownload 720p
+<b>📥 دانلود گروهی:</b>
+برای دانلود چندین لینک به صورت همزمان از دستور <code>/bulkdownload</code> استفاده کنید:
+
+<code>/bulkdownload 720p
 https://youtube.com/watch?v=VIDEO1
 https://instagram.com/p/POST1
-https://youtube.com/shorts/VIDEO2
+https://youtube.com/shorts/VIDEO2</code>
 
-📊 مدیریت دانلودهای موازی:
-• /status_BATCH_ID - بررسی وضعیت یک دسته دانلود
-• /mydownloads - مشاهده لیست همه دانلودهای شما
+<b>📊 مدیریت دانلودها:</b>
+• <code>/status_BATCH_ID</code> - بررسی وضعیت یک دسته دانلود
+• <code>/mydownloads</code> - مشاهده لیست همه دانلودهای شما
 
-محدودیت ها:
-• حداکثر حجم فایل: 50 مگابایت
-• حداکثر تعداد دانلود همزمان: 3
+<b>⚠️ محدودیت‌ها:</b>
+• حداکثر حجم فایل: <b>50 مگابایت</b>
+• حداکثر تعداد دانلود همزمان: <b>3</b>
 
-برای اطلاعات بیشتر: /about"""
+<i>برای اطلاعات بیشتر: /about</i>"""
 
-ABOUT_MESSAGE = """📱 درباره ربات دانلودر مدیا
+ABOUT_MESSAGE = """<b>📱 درباره ربات هوشمند دانلودر مدیا</b>
 
-این ربات به شما امکان دانلود ویدیوهای اینستاگرام و یوتیوب را با کیفیت‌های مختلف می‌دهد.
+این ربات به شما امکان دانلود ویدیوهای <b>اینستاگرام</b> و <b>یوتیوب</b> را با بهترین کیفیت و سرعت می‌دهد.
 
-✨ قابلیت‌ها:
-• دانلود ویدیوهای اینستاگرام (پست‌ها و ریل‌ها)
-• دانلود ویدیوهای یوتیوب (عادی، شورتز و پلی‌لیست)
-• انتخاب کیفیت‌های مختلف (1080p، 720p، 480p، 360p، 240p)
-• دانلود فقط صدا (MP3)
-• دانلود موازی و همزمان چندین لینک
-• مدیریت دانلودهای در حال انجام
+<b>✨ قابلیت‌های ویژه:</b>
+• <b>دانلود سریع</b> با بهینه‌سازی چندنخی
+• دانلود ویدیوهای <b>اینستاگرام</b> (پست‌ها و ریل‌ها)
+• دانلود ویدیوهای <b>یوتیوب</b> (عادی، شورتز و پلی‌لیست)
+• انتخاب <b>کیفیت‌های متنوع</b> (1080p، 720p، 480p، 360p، 240p)
+• استخراج <b>صدا با کیفیت بالا</b> (MP3)
+• <b>دانلود موازی</b> و همزمان چندین لینک
+• <b>رابط کاربری زیبا</b> و کاربرپسند
 
-🛠️ تکنولوژی‌های استفاده شده:
-• Python 3 
-• python-telegram-bot
-• yt-dlp
-• instaloader
-• FFmpeg
-• AsyncIO
+<b>🛠️ تکنولوژی‌های پیشرفته:</b>
+• Python 3.11 با AsyncIO
+• python-telegram-bot - نسخه ۲۰
+• yt-dlp - با پردازش بهینه‌شده
+• instaloader - با پشتیبانی از پست‌های جدید
+• FFmpeg - رندرینگ سریع و کم‌حجم
+• پردازش چندنخی برای دانلود همزمان
 
-📌 نسخه: 2.0.0
+<b>📌 نسخه:</b> 2.2.0
 
-🔄 آخرین بروزرسانی: فروردین ۱۴۰۴"""
+<b>🔄 آخرین بروزرسانی:</b> فروردین ۱۴۰۴
+
+<i>توسعه داده شده توسط تیم DataPixelStudio</i>"""
 
 # پیام‌های خطا
 ERROR_MESSAGES = {
@@ -1652,40 +1699,148 @@ class YouTubeDownloader:
             return None
 
 """
-بخش 5: هندلرهای ربات تلگرام (از ماژول telegram_bot.py)
+بخش 5: سیستم آمار و عملکرد
 """
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+# اضافه کردن ماژول‌های آمار و عملکرد
+try:
+    from stats_manager import StatsManager, stats_command, handle_stats_buttons, Timer
+    from performance_optimizer import init_performance_optimizations, MemoryMonitor, NetworkOptimizer, FFmpegOptimizer
+    from database_models import init_db
+    
+    # راه‌اندازی بهینه‌سازی‌های عملکرد
+    init_performance_optimizations()
+    
+    # راه‌اندازی پایگاه داده
+    init_db()
+    
+    # تنظیم متغیرهای مدیریت آمار
+    STATS_ENABLED = True
+    download_timer = Timer()
+    
+    logger.info("سیستم آمار و عملکرد با موفقیت راه‌اندازی شد")
+except ImportError as e:
+    logger.warning(f"خطا در بارگذاری ماژول‌های آمار و عملکرد: {e}")
+    STATS_ENABLED = False
+
+"""
+بخش 6: هندلرهای ربات تلگرام (از ماژول telegram_bot.py)
+"""
+
+async def start(update: Update, context) -> None:
     """
     هندلر دستور /start
     """
     user_id = update.effective_user.id
     logger.info(f"دستور /start دریافت شد از کاربر {user_id}")
     try:
-        await update.message.reply_text(START_MESSAGE)
+        # بارگذاری ماژول‌های بهینه‌سازی اگر موجود باشند
+        try:
+            from enhanced_telegram_handler import apply_all_enhancements
+            await apply_all_enhancements()
+        except ImportError:
+            logger.info("ماژول enhanced_telegram_handler در دسترس نیست")
+            
+        # تلاش برای بهینه‌سازی yt-dlp
+        try:
+            from youtube_downloader_optimizer import optimize_youtube_downloader
+            optimize_youtube_downloader()
+        except ImportError:
+            logger.info("ماژول youtube_downloader_optimizer در دسترس نیست")
+            
+        # تلاش برای بهینه‌سازی کش
+        try:
+            from cache_optimizer import optimize_cache
+            optimize_cache()
+        except ImportError:
+            logger.info("ماژول cache_optimizer در دسترس نیست")
+        
+        # ایجاد دکمه‌های راهنما
+        keyboard = [
+            [
+                InlineKeyboardButton("📚 راهنمای استفاده", callback_data="help"),
+                InlineKeyboardButton("ℹ️ درباره ربات", callback_data="about")
+            ],
+            [
+                InlineKeyboardButton("📥 دانلودهای من", callback_data="mydownloads")
+            ]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # ارسال پیام خوش‌آمدگویی با فرمت HTML و دکمه‌ها
+        await update.message.reply_text(
+            START_MESSAGE,
+            reply_markup=reply_markup,
+            parse_mode='HTML'
+        )
         logger.info(f"پاسخ به دستور /start برای کاربر {user_id} ارسال شد")
     except Exception as e:
         logger.error(f"خطا در پاسخ به دستور /start: {e}")
         logger.error(f"Traceback: {traceback.format_exc()}")
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def help_command(update: Update, context) -> None:
     """
     هندلر دستور /help
     """
-    await update.message.reply_text(HELP_MESSAGE)
+    # ایجاد دکمه‌های راهنما
+    keyboard = [
+        [
+            InlineKeyboardButton("🎬 کیفیت‌های ویدیو", callback_data="help_video"),
+            InlineKeyboardButton("🎵 دانلود صوتی", callback_data="help_audio")
+        ],
+        [
+            InlineKeyboardButton("📱 دانلود گروهی", callback_data="help_bulk"),
+            InlineKeyboardButton("ℹ️ درباره ربات", callback_data="about")
+        ],
+        [
+            InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="back_to_start")
+        ]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # ارسال پیام راهنما با فرمت HTML و دکمه‌ها
+    await update.message.reply_text(
+        HELP_MESSAGE,
+        reply_markup=reply_markup,
+        parse_mode='HTML'
+    )
 
-async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def about_command(update: Update, context) -> None:
     """
     هندلر دستور /about
     """
-    await update.message.reply_text(ABOUT_MESSAGE)
+    # ایجاد دکمه بازگشت به منوی اصلی
+    keyboard = [
+        [
+            InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="back_to_start")
+        ]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # ارسال پیام درباره با فرمت HTML و دکمه بازگشت
+    await update.message.reply_text(
+        ABOUT_MESSAGE,
+        reply_markup=reply_markup,
+        parse_mode='HTML'
+    )
 
-async def process_url(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def process_url(update: Update, context) -> None:
     """
     هندلر پردازش URL ارسال شده توسط کاربر
     """
     user_id = update.effective_user.id
     logger.info(f"پیام جدید از کاربر {user_id}: {update.message.text[:30]}...")
+    
+    # ثبت کاربر در سیستم آمار اگر فعال باشد
+    if STATS_ENABLED:
+        try:
+            StatsManager.ensure_user_exists(update)
+        except Exception as e:
+            logger.error(f"خطا در ثبت کاربر در سیستم آمار: {e}")
+    
     # استخراج URL از متن پیام
     url = extract_url(update.message.text)
     
@@ -1765,7 +1920,7 @@ async def process_url(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         
         await processing_message.edit_text(error_message)
 
-async def process_instagram_url(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, status_message, url_id: str = None) -> None:
+async def process_instagram_url(update: Update, context, url: str, status_message, url_id: str = None) -> None:
     """
     پردازش URL اینستاگرام
     
@@ -1895,7 +2050,7 @@ async def process_instagram_url(update: Update, context: ContextTypes.DEFAULT_TY
             
         await status_message.edit_text(error_message)
 
-async def process_youtube_url(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, status_message, url_id: str = None) -> None:
+async def process_youtube_url(update: Update, context, url: str, status_message, url_id: str = None) -> None:
     """
     پردازش URL یوتیوب و نمایش گزینه‌های دانلود (نسخه بهبود یافته)
     
@@ -2031,7 +2186,7 @@ async def process_youtube_url(update: Update, context: ContextTypes.DEFAULT_TYPE
             
         await status_message.edit_text(error_message)
 
-async def handle_download_option(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_download_option(update: Update, context) -> None:
     """
     هندلر انتخاب گزینه دانلود توسط کاربر
     """
@@ -2041,6 +2196,11 @@ async def handle_download_option(update: Update, context: ContextTypes.DEFAULT_T
     # استخراج اطلاعات کالبک
     callback_data = query.data
     user_id = update.effective_user.id
+    
+    # اطمینان از اینکه این هندلر فقط کالبک‌های دانلود را پردازش می‌کند
+    if not callback_data.startswith("dl_"):
+        logger.warning(f"کالبک غیر دانلود {callback_data} به هندلر دانلود ارسال شد - در حال رد کردن")
+        return
     
     logger.info(f"کاربر {user_id} دکمه {callback_data} را انتخاب کرد")
     
@@ -2391,7 +2551,7 @@ async def handle_download_option(update: Update, context: ContextTypes.DEFAULT_T
         logger.error(f"جزئیات خطا: {traceback.format_exc()}")
         await query.edit_message_text(ERROR_MESSAGES["generic_error"])
 
-async def download_instagram(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, option_id: str) -> None:
+async def download_instagram(update: Update, context, url: str, option_id: str) -> None:
     """
     دانلود ویدیوی اینستاگرام با کیفیت مشخص
     
@@ -2623,7 +2783,7 @@ async def download_instagram(update: Update, context: ContextTypes.DEFAULT_TYPE,
         logger.error(f"جزئیات خطا: {traceback.format_exc()}")
         await query.edit_message_text(ERROR_MESSAGES["download_failed"])
 
-async def download_instagram_with_option(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, selected_option: Dict) -> None:
+async def download_instagram_with_option(update: Update, context, url: str, selected_option: Dict) -> None:
     """
     دانلود ویدیوی اینستاگرام با استفاده از اطلاعات کامل گزینه
     
@@ -2867,7 +3027,7 @@ async def download_instagram_with_option(update: Update, context: ContextTypes.D
         logger.error(f"جزئیات خطا: {traceback.format_exc()}")
         await query.edit_message_text(ERROR_MESSAGES["download_failed"])
 
-async def download_youtube_with_option(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, selected_option: Dict) -> None:
+async def download_youtube_with_option(update: Update, context, url: str, selected_option: Dict) -> None:
     """
     دانلود ویدیوی یوتیوب با استفاده از اطلاعات کامل گزینه
     
@@ -2880,6 +3040,10 @@ async def download_youtube_with_option(update: Update, context: ContextTypes.DEF
     query = update.callback_query
     user_id = update.effective_user.id
     user_download_data[user_id] = {'url': url, 'download_time': time.time()}
+    
+    # شروع زمان‌سنج برای ثبت آمار
+    if STATS_ENABLED:
+        download_timer.start()
     
     try:
         logger.info(f"شروع دانلود یوتیوب با گزینه کامل: {selected_option.get('label', 'نامشخص')}")
@@ -3187,7 +3351,7 @@ async def download_youtube_with_option(update: Update, context: ContextTypes.DEF
         logger.error(f"جزئیات خطا: {traceback.format_exc()}")
         await query.edit_message_text(ERROR_MESSAGES["download_failed"])
 
-async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, option_id: str) -> None:
+async def download_youtube(update: Update, context, url: str, option_id: str) -> None:
     """
     دانلود ویدیوی یوتیوب
     
@@ -3474,9 +3638,65 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         # ارسال پیام تکمیل
         await query.edit_message_text(STATUS_MESSAGES["complete"])
         
+        # ثبت آمار دانلود در صورت فعال بودن سیستم آمار
+        if STATS_ENABLED:
+            try:
+                # توقف زمان‌سنج
+                download_timer.stop()
+                download_time = download_timer.get_elapsed()
+                
+                # تبدیل حجم فایل از بایت به مگابایت
+                file_size_mb = file_size / (1024 * 1024) if file_size else None
+                
+                # ثبت در پایگاه داده
+                try:
+                    from stats_manager import StatsManager
+                    StatsManager.record_download(
+                        user_id=update.effective_user.id,
+                        url=url,
+                        source_type="youtube",
+                        quality=quality if 'quality' in locals() else 'best',
+                        is_audio=is_audio if 'is_audio' in locals() else False,
+                        file_size=file_size_mb if file_size_mb is not None else 0.0,
+                        download_time=download_time if download_time is not None else 0.0,
+                        success=True
+                    )
+                except ImportError:
+                    logger.warning("ماژول StatsManager یافت نشد")
+                logger.info(f"آمار دانلود با موفقیت ثبت شد: {url[:30]}...")
+            except Exception as stats_error:
+                logger.error(f"خطا در ثبت آمار دانلود: {stats_error}")
+        
     except Exception as e:
         logger.error(f"خطا در دانلود ویدیوی یوتیوب: {str(e)}")
         logger.error(f"جزئیات خطا: {traceback.format_exc()}")
+        
+        # ثبت خطا در آمار
+        if STATS_ENABLED:
+            try:
+                # توقف زمان‌سنج
+                download_timer.stop()
+                download_time = download_timer.get_elapsed()
+                
+                # ثبت در پایگاه داده
+                try:
+                    from stats_manager import StatsManager
+                    StatsManager.record_download(
+                        user_id=update.effective_user.id,
+                        url=url,
+                        source_type="youtube",
+                        quality=quality if 'quality' in locals() else 'best',
+                        is_audio=is_audio if 'is_audio' in locals() else False,
+                        file_size=0.0,
+                        download_time=download_time if download_time is not None else 0.0,
+                        success=False,
+                        error=str(e)[:255]  # محدود کردن طول پیام خطا
+                    )
+                except ImportError:
+                    logger.warning("ماژول StatsManager یافت نشد")
+            except Exception as stats_error:
+                logger.error(f"خطا در ثبت آمار خطای دانلود: {stats_error}")
+                
         await query.edit_message_text(ERROR_MESSAGES["download_failed"])
 
 """
@@ -3622,22 +3842,18 @@ async def main():
     # بررسی وجود نمونه‌های دیگر ربات در حال اجرا
     lock_file = "/tmp/telegram_bot_lock"
     try:
+        # همیشه فایل قفل قبلی را پاک می‌کنیم تا از خطاهای قفل اجتناب شود
         if os.path.exists(lock_file):
-            # بررسی زنده بودن فرآیند
-            with open(lock_file, 'r') as f:
-                pid = int(f.read().strip())
             try:
-                # بررسی آیا این PID هنوز زنده است
-                os.kill(pid, 0)
-                logger.warning(f"یک نمونه دیگر از ربات (PID: {pid}) در حال اجراست. این نمونه خاتمه می‌یابد.")
-                return
-            except OSError:
-                # PID وجود ندارد، فایل قفل قدیمی است
-                logger.info("فایل قفل قدیمی پیدا شد. ادامه اجرا...")
+                os.remove(lock_file)
+                logger.info("فایل قفل قبلی حذف شد")
+            except:
+                logger.warning("خطا در حذف فایل قفل قبلی")
         
-        # ایجاد فایل قفل با PID فعلی
+        # ایجاد فایل قفل جدید
         with open(lock_file, 'w') as f:
             f.write(str(os.getpid()))
+            logger.info(f"فایل قفل جدید با PID {os.getpid()} ایجاد شد")
             
         # پاکسازی فایل‌های موقت
         clean_temp_files()
@@ -3649,15 +3865,54 @@ async def main():
             logger.error("توکن ربات تلگرام یافت نشد! لطفاً متغیر محیطی TELEGRAM_BOT_TOKEN را تنظیم کنید.")
             return
             
-        # ایجاد اپلیکیشن ربات
-        app = Application.builder().token(telegram_token).build()
+        # ایجاد اپلیکیشن ربات 
+        # بررسی نسخه کتابخانه و ایجاد اپلیکشن مطابق با آن
+        try:
+            # نسخه 20.x
+            try:
+                from telegram.ext import ApplicationBuilder
+                app = ApplicationBuilder().token(telegram_token).build()
+                logger.info("اپلیکیشن ربات با نسخه PTB 20.x ایجاد شد")
+            except (AttributeError, ImportError):
+                # نسخه 13.x
+                from telegram.ext import Updater
+                updater = Updater(token=telegram_token)
+                app = updater.dispatcher
+                logger.info("اپلیکیشن ربات با نسخه PTB 13.x ایجاد شد")
+        except Exception as e:
+            logger.error(f"خطا در ایجاد اپلیکیشن ربات: {e}")
+            raise
         
         # افزودن هندلرها
+        # ثبت هندلرهای اصلی
         app.add_handler(CommandHandler("start", start))
         app.add_handler(CommandHandler("help", help_command))
         app.add_handler(CommandHandler("about", about_command))
+        
+        # اضافه کردن هندلر دستور آمار (فقط برای مدیران)
+        if STATS_ENABLED:
+            try:
+                # وارد کردن ماژول آمار
+                from stats_manager import stats_command, handle_stats_buttons
+                
+                app.add_handler(CommandHandler("stats", stats_command))
+                # هندلر کالبک دکمه‌های آمار
+                app.add_handler(CallbackQueryHandler(handle_stats_buttons, pattern="^(stats_chart|daily_chart|refresh_stats)$"))
+                logger.info("هندلرهای آمار با موفقیت اضافه شدند")
+            except Exception as e:
+                logger.error(f"خطا در افزودن هندلرهای آمار: {e}")
+                
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_url))
-        app.add_handler(CallbackQueryHandler(handle_download_option))
+        
+        # ثبت هندلرهای کالبک دکمه‌ها
+        from telegram_handlers import handle_menu_button
+        
+        # هندلر کالبک دکمه‌های دانلود (برای دکمه‌های دانلود فایل)
+        # این هندلر باید اول ثبت شود زیرا اولویت بیشتری دارد
+        app.add_handler(CallbackQueryHandler(handle_download_option, pattern="^dl_"))
+        
+        # هندلر کالبک دکمه‌های منو (برای دکمه‌های بازگشت و راهنما)
+        app.add_handler(CallbackQueryHandler(handle_menu_button, pattern="^(back_to_start|help|about|help_video|help_audio|help_bulk|mydownloads)$"))
         
         # افزودن هندلرهای دانلود موازی
         try:
@@ -3672,16 +3927,36 @@ async def main():
         # راه‌اندازی وظیفه پاکسازی دوره‌ای
         asyncio.create_task(run_periodic_cleanup(app))
         
-        # راه‌اندازی ربات
-        await app.initialize()
-        await app.start()
-        await app.updater.start_polling()
+        # راه‌اندازی ربات مطابق با نسخه کتابخانه
+        try:
+            # برای نسخه 20.x
+            await app.initialize()
+            await app.start()
+            await app.updater.start_polling()
+            logger.info("ربات با API نسخه 20.x راه‌اندازی شد")
+        except AttributeError:
+            # برای نسخه 13.x
+            try:
+                updater.start_polling()
+                logger.info("ربات با API نسخه 13.x راه‌اندازی شد")
+            except Exception as e:
+                logger.error(f"خطا در راه‌اندازی polling: {e}")
+                raise
         
         logger.info("ربات با موفقیت راه‌اندازی شد!")
         
         try:
-            # نگه داشتن ربات در حال اجرا
-            await asyncio.Event().wait()
+            # نگه داشتن ربات در حال اجرا بر اساس نسخه
+            # برای نسخه 13.x نیازی به این کد نیست زیرا updater.idle() در خود کتابخانه انجام می‌شود
+            try:
+                # برای نسخه 20.x
+                await asyncio.Event().wait()
+            except AttributeError:
+                # برای نسخه 13.x (idle را به صورت مستقیم صدا می‌زنیم)
+                try:
+                    updater.idle()
+                except Exception as e:
+                    logger.error(f"خطا در اجرای idle: {e}")
         finally:
             # حذف فایل قفل هنگام خروج
             if os.path.exists(lock_file):

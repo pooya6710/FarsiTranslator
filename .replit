@@ -5,7 +5,7 @@ channel = "stable-24_05"
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["python", "telegram_downloader.py", "--skip-tests"]
+run = ["sh", "-c", "python telegram_downloader.py --skip-tests"]
 
 [workflows]
 runButton = "Run Bot"

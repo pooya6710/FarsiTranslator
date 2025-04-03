@@ -4,3 +4,9 @@ yt-dlp>=2023.11.16
 instaloader>=4.10.1
 requests>=2.31.0
 psycopg2-binary>=2.9.9
+matplotlib
+numpy
+sqlalchemy
+telegram
+python-telegram-bot
+python-telegram-bot==13.15
