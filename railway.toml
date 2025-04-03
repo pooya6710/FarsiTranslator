@@ -1,6 +1,5 @@
 [build]
-builder = "docker"
-buildCommand = "chmod +x .railway/clean.sh && ./.railway/clean.sh"
+builder = "nixpacks"
 
 [deploy]
 startCommand = "bash railway_startup.sh"
@@ -10,8 +9,7 @@ restartPolicyType = "always"
 aptPackages = ["ffmpeg", "python3-dev"]
 dontInstallRecommends = true
 
-[build.args]
-SKIP_ARIA2 = "true"
+[env]
 YDL_NO_ARIA2C = "1"
 HTTP_DOWNLOADER = "native"
 YTDLP_DOWNLOADER = "native"
