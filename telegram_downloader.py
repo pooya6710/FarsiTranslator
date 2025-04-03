@@ -3626,7 +3626,7 @@ def ping():
     return "Bot is alive!"
 
 def run_flask():
-    flask_app.run(host='0.0.0.0', port=8080)
+    flask_app.run(host='0.0.0.0', port=5000)
 
 async def main():
     """راه‌اندازی ربات تلگرام و سرور فلسک"""
