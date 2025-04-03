@@ -164,45 +164,74 @@ START_MESSAGE = """
 • دانلود ویدیوهای یوتیوب (عادی، شورتز و پلی‌لیست)
 • انتخاب کیفیت مختلف (1080p، 720p، 480p، 360p، 240p)
 • دانلود فقط صدای ویدیو
+• دانلود موازی و همزمان چندین لینک
 
 🔍 نحوه استفاده:
-فقط کافیست لینک ویدیوی مورد نظر خود را برای ربات ارسال کنید.
+• ارسال لینک: لینک ویدیوی مورد نظر خود را برای ربات ارسال کنید
+• دانلود گروهی: برای دانلود چندین لینک از دستور /bulkdownload استفاده کنید
 
 👨‍💻 برای دیدن راهنمای کامل: /help
 """
 
-HELP_MESSAGE = """راهنمای استفاده:
+HELP_MESSAGE = """🔍 راهنمای استفاده:
 
-1. لینک اینستاگرام یا یوتیوب را ارسال کنید
-2. گزینه های دانلود را مشاهده کنید
-3. کیفیت مورد نظر را انتخاب کنید
-4. فایل دانلود شده را دریافت کنید
+1️⃣ برای دانلود ویدیو از اینستاگرام یا یوتیوب، کافیست لینک را برای من ارسال کنید.
+2️⃣ من به صورت خودکار آن را شناسایی کرده و گزینه‌های دانلود را نمایش می‌دهم.
+3️⃣ با انتخاب کیفیت مورد نظر، فایل را برای شما ارسال خواهم کرد.
+
+📌 لینک‌های پشتیبانی شده:
+• یوتیوب: رگولار، شورت و پلی‌لیست
+• اینستاگرام: پست‌ها، ریل‌ها و استوری‌ها
+
+🔄 کیفیت‌های قابل انتخاب:
+• 1080p (Full HD)
+• 720p (HD)
+• 480p
+• 360p
+• 240p
+• فقط صدا (MP3)
+
+📥 دانلود موازی چندین لینک:
+برای دانلود چندین لینک به صورت همزمان از دستور /bulkdownload استفاده کنید.
+مثال: 
+/bulkdownload 720p
+https://youtube.com/watch?v=VIDEO1
+https://instagram.com/p/POST1
+https://youtube.com/shorts/VIDEO2
+
+📊 مدیریت دانلودهای موازی:
+• /status_BATCH_ID - بررسی وضعیت یک دسته دانلود
+• /mydownloads - مشاهده لیست همه دانلودهای شما
 
 محدودیت ها:
-- حداکثر حجم فایل: 50 مگابایت
-- در صورت محدودیت, از فرمت های پیش فرض استفاده می شود
+• حداکثر حجم فایل: 50 مگابایت
+• حداکثر تعداد دانلود همزمان: 3
 
 برای اطلاعات بیشتر: /about"""
 
-ABOUT_MESSAGE = """درباره ربات دانلودر
+ABOUT_MESSAGE = """📱 درباره ربات دانلودر مدیا
 
-این ربات به شما امکان دانلود ویدیوهای اینستاگرام و یوتیوب را با کیفیت های مختلف می دهد.
+این ربات به شما امکان دانلود ویدیوهای اینستاگرام و یوتیوب را با کیفیت‌های مختلف می‌دهد.
 
-قابلیت ها:
-- دانلود ویدیوهای اینستاگرام (پست ها و ریلز)
-- دانلود ویدیوهای یوتیوب (عادی, شورتز و پلی لیست)
-- انتخاب کیفیت های مختلف ("1080p", "720p", "480p", "360p", "240p")
-- دانلود فقط صدا
+✨ قابلیت‌ها:
+• دانلود ویدیوهای اینستاگرام (پست‌ها و ریل‌ها)
+• دانلود ویدیوهای یوتیوب (عادی، شورتز و پلی‌لیست)
+• انتخاب کیفیت‌های مختلف (1080p، 720p، 480p، 360p، 240p)
+• دانلود فقط صدا (MP3)
+• دانلود موازی و همزمان چندین لینک
+• مدیریت دانلودهای در حال انجام
 
-تکنولوژی های استفاده شده:
-- Python 3 
-- python-telegram-bot
-- yt-dlp
-- instaloader
+🛠️ تکنولوژی‌های استفاده شده:
+• Python 3 
+• python-telegram-bot
+• yt-dlp
+• instaloader
+• FFmpeg
+• AsyncIO
 
-نسخه: 1.0.0
+📌 نسخه: 2.0.0
 
-آخرین بروزرسانی: تیر ۱۴۰۳"""
+🔄 آخرین بروزرسانی: فروردین ۱۴۰۴"""
 
 # پیام‌های خطا
 ERROR_MESSAGES = {
@@ -1387,9 +1416,21 @@ class YouTubeDownloader:
                         'outtmpl': output_path.replace('.mp3', '.%(ext)s'),
                     })
                     
-                    # دانلود با yt-dlp
+                    # دانلود با yt-dlp - بدون استفاده از loop
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                        await loop.run_in_executor(None, ydl.download, [clean_url])
+                        try:
+                            # روش مستقیم
+                            ydl.download([clean_url])
+                        except Exception as e1:
+                            logger.error(f"خطا در دانلود صوتی با روش اول: {e1}")
+                            # روش با ترد جدا
+                            try:
+                                import threading
+                                download_thread = threading.Thread(target=ydl.download, args=([clean_url],))
+                                download_thread.start()
+                                download_thread.join(timeout=30) # انتظار حداکثر 30 ثانیه
+                            except Exception as e2:
+                                logger.error(f"خطا در دانلود صوتی با روش دوم: {e2}")
                         
                     # اگر فایل ایجاد نشد، از روش دوم استفاده می‌کنیم
                     if not os.path.exists(output_path):
@@ -1401,7 +1442,19 @@ class YouTubeDownloader:
                         })
                         
                         with yt_dlp.YoutubeDL(video_ydl_opts) as ydl:
-                            await loop.run_in_executor(None, ydl.download, [clean_url])
+                            try:
+                                # روش مستقیم
+                                ydl.download([clean_url])
+                            except Exception as e1:
+                                logger.error(f"خطا در دانلود ویدیو با روش اول: {e1}")
+                                # روش با ترد جداگانه
+                                try:
+                                    import threading
+                                    download_thread = threading.Thread(target=ydl.download, args=([clean_url],))
+                                    download_thread.start()
+                                    download_thread.join(timeout=30)  # انتظار حداکثر 30 ثانیه
+                                except Exception as e2:
+                                    logger.error(f"خطا در دانلود ویدیو با روش دوم: {e2}")
                             
                         # استخراج صدا از ویدیو
                         video_path = output_path.replace('.mp3', '_temp.mp4')
@@ -1427,24 +1480,24 @@ class YouTubeDownloader:
                     logger.error(f"خطا در استخراج صدا: {str(e)}")
                     return None
             else:
-                # انتخاب فرمت بر اساس گزینه کاربر با اولویت کیفیت خاص
+                # انتخاب فرمت بر اساس گزینه کاربر با تضمین دریافت ویدیو
                 if '1080p' in format_option:
-                    format_spec = 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best[height<=1080]'
+                    format_spec = 'bestvideo[height=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080][ext=mp4]+bestaudio/best[height<=1080][ext=mp4]/best'
                     quality = '1080p'
                 elif '720p' in format_option:
-                    format_spec = 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[height<=720]'
+                    format_spec = 'bestvideo[height=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720][ext=mp4]+bestaudio/best[height<=720][ext=mp4]/best'
                     quality = '720p'
                 elif '480p' in format_option:
-                    format_spec = 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]/best[height<=480]'
+                    format_spec = 'bestvideo[height=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480][ext=mp4]+bestaudio/best[height<=480][ext=mp4]/best'
                     quality = '480p'
                 elif '360p' in format_option:
-                    format_spec = 'bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/best[height<=360][ext=mp4]/best[height<=360]'
+                    format_spec = 'bestvideo[height=360][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=360][ext=mp4]+bestaudio/best[height<=360][ext=mp4]/best'
                     quality = '360p'
                 elif '240p' in format_option:
-                    format_spec = 'bestvideo[height<=240][ext=mp4]+bestaudio[ext=m4a]/best[height<=240][ext=mp4]/best[height<=240]'
+                    format_spec = 'bestvideo[height=240][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=240][ext=mp4]+bestaudio/best[height<=240][ext=mp4]/best'
                     quality = '240p'
                 else:
-                    format_spec = 'best[ext=mp4]/best'
+                    format_spec = 'bestvideo+bestaudio/best[ext=mp4]/best'
                     quality = 'best'
                     
                 logger.info(f"استفاده از فرمت {format_spec} برای دانلود یوتیوب با کیفیت {quality}")
@@ -1512,10 +1565,21 @@ class YouTubeDownloader:
                 return zip_path
                 
             else:
-                # دانلود ویدیو
-                loop = asyncio.get_event_loop()
+                # دانلود ویدیو - بدون استفاده از loop
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    await loop.run_in_executor(None, ydl.download, [clean_url])
+                    try:
+                        # روش مستقیم
+                        ydl.download([clean_url])
+                    except Exception as e1:
+                        logger.error(f"خطا در دانلود ویدیو با روش اول: {e1}")
+                        # روش با ترد جداگانه
+                        try:
+                            import threading
+                            download_thread = threading.Thread(target=ydl.download, args=([clean_url],))
+                            download_thread.start()
+                            download_thread.join(timeout=30)  # انتظار حداکثر 30 ثانیه
+                        except Exception as e2:
+                            logger.error(f"خطا در دانلود ویدیو با روش دوم: {e2}")
                     
                 # بررسی وجود فایل خروجی
                 if is_audio_only:
@@ -1599,7 +1663,8 @@ async def process_url(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     url = extract_url(update.message.text)
     
     if not url:
-        await update.message.reply_text(ERROR_MESSAGES["url_not_found"])
+        # اگر URL در پیام یافت نشود، هیچ واکنشی نشان نمی‌دهیم
+        logger.info(f"پیام بدون لینک از کاربر {user_id} دریافت شد - بدون پاسخ")
         return
         
     # ارسال پیام در حال پردازش
@@ -2786,6 +2851,8 @@ async def download_youtube_with_option(update: Update, context: ContextTypes.DEF
         selected_option: گزینه انتخاب شده از کش
     """
     query = update.callback_query
+    user_id = update.effective_user.id
+    user_download_data[user_id] = {'url': url, 'download_time': time.time()}
     
     try:
         logger.info(f"شروع دانلود یوتیوب با گزینه کامل: {selected_option.get('label', 'نامشخص')}")
@@ -3117,26 +3184,33 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             # تبدیل به عدد برای راحتی کار
             option_num = int(option_id)
             
-            # نگاشت مستقیم شماره گزینه به کیفیت متناظر
+            # نگاشت مستقیم شماره گزینه به کیفیت متناظر با تضمین دریافت ویدیو
             # گزینه‌های یوتیوب معمولاً: 0: 1080p, 1: 720p, 2: 480p, 3: 360p, 4: 240p, 5: audio
             if option_num == 0:
-                format_option = "137+140/bestvideo[height<=1080]+bestaudio/best"
+                # روش ایمن‌تر با تضمین کیفیت 1080p و جلوگیری از نمایش صوتی فقط
+                format_option = "137+140/bestvideo[height=1080]+bestaudio/best[height=1080]/best"
+                quality = "1080p"
                 quality_display = "کیفیت Full HD (1080p)"
             elif option_num == 1:
-                format_option = "136+140/bestvideo[height<=720]+bestaudio/best"
+                format_option = "136+140/bestvideo[height=720]+bestaudio/best[height=720]/best" 
+                quality = "720p"
                 quality_display = "کیفیت HD (720p)"
             elif option_num == 2:
-                format_option = "135+140/bestvideo[height<=480]+bestaudio/best"
+                format_option = "135+140/bestvideo[height=480]+bestaudio/best[height=480]/best"
+                quality = "480p"
                 quality_display = "کیفیت متوسط (480p)"
             elif option_num == 3:
-                format_option = "134+140/bestvideo[height<=360]+bestaudio/best"
+                format_option = "134+140/bestvideo[height=360]+bestaudio/best[height=360]/best"
+                quality = "360p"
                 quality_display = "کیفیت پایین (360p)"
             elif option_num == 4:
-                format_option = "133+140/bestvideo[height<=240]+bestaudio/best"
+                format_option = "133+140/bestvideo[height=240]+bestaudio/best[height=240]/best"
+                quality = "240p"
                 quality_display = "کیفیت خیلی پایین (240p)"
             elif option_num == 5:
                 format_option = "bestaudio"
                 is_audio_request = True
+                quality = "audio"
                 quality_display = "فقط صدا (MP3)"
                 
             logger.info(f"کیفیت انتخاب شده بر اساس شماره گزینه {option_num}: {format_option}")
@@ -3186,10 +3260,23 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
                 'noplaylist': True,  # فقط ویدیوی اصلی، نه پلی‌لیست
             }
             
-            # دانلود فایل
-            loop = asyncio.get_event_loop()
+            # دانلود فایل - اصلاح متغیر loop
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                await loop.run_in_executor(None, ydl.download, [url])
+                # استفاده از روش ایمن برای دانلود بدون نیاز به loop
+                try:
+                    # روش 1: دانلود مستقیم
+                    ydl.download([url])
+                except Exception as e:
+                    logger.error(f"خطا در دانلود با روش اول: {e}")
+                    # روش 2: بدون استفاده از loop
+                    try:
+                        # ایجاد یک ترد جداگانه برای دانلود
+                        import threading
+                        download_thread = threading.Thread(target=ydl.download, args=([url],))
+                        download_thread.start()
+                        download_thread.join(timeout=30)  # انتظار حداکثر 30 ثانیه
+                    except Exception as e2:
+                        logger.error(f"خطا در دانلود با روش دوم: {e2}")
             
             # بررسی وجود فایل mp3
             if not os.path.exists(output_path):
@@ -3217,8 +3304,10 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             # بروزرسانی متغیر کیفیت برای استفاده در caption
             option_id = format_option
             
-            # تشخیص فایل صوتی از روی پسوند
-            is_audio = downloaded_file.endswith(('.mp3', '.m4a', '.aac', '.wav'))
+            # تشخیص فایل صوتی از روی پسوند (با بررسی مقدار None)
+            is_audio = False
+            if downloaded_file:  # فقط اگر مقدار None نباشد
+                is_audio = downloaded_file.endswith(('.mp3', '.m4a', '.aac', '.wav'))
             
         if not downloaded_file or not os.path.exists(downloaded_file):
             await query.edit_message_text(ERROR_MESSAGES["download_failed"])
@@ -3468,6 +3557,16 @@ async def main():
         app.add_handler(CommandHandler("about", about_command))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_url))
         app.add_handler(CallbackQueryHandler(handle_download_option))
+        
+        # افزودن هندلرهای دانلود موازی
+        try:
+            from bulk_download_handler import register_handlers
+            register_handlers(app)
+            logger.info("هندلرهای دانلود موازی با موفقیت اضافه شدند")
+        except ImportError as e:
+            logger.warning(f"ماژول دانلود موازی یافت نشد: {e}")
+        except Exception as e:
+            logger.error(f"خطا در افزودن هندلرهای دانلود موازی: {e}")
         
         # راه‌اندازی وظیفه پاکسازی دوره‌ای
         asyncio.create_task(run_periodic_cleanup(app))
