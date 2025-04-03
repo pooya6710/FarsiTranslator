@@ -3188,23 +3188,23 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             # گزینه‌های یوتیوب معمولاً: 0: 1080p, 1: 720p, 2: 480p, 3: 360p, 4: 240p, 5: audio
             if option_num == 0:
                 # روش ایمن‌تر با تضمین کیفیت 1080p و جلوگیری از نمایش صوتی فقط
-                format_option = "137+140/bestvideo[height=1080]+bestaudio/best[height=1080]/best"
+                format_option = "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best[ext=mp4]/best"
                 quality = "1080p"
                 quality_display = "کیفیت Full HD (1080p)"
             elif option_num == 1:
-                format_option = "136+140/bestvideo[height=720]+bestaudio/best[height=720]/best" 
+                format_option = "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[ext=mp4]/best"
                 quality = "720p"
                 quality_display = "کیفیت HD (720p)"
             elif option_num == 2:
-                format_option = "135+140/bestvideo[height=480]+bestaudio/best[height=480]/best"
+                format_option = "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]/best[ext=mp4]/best"
                 quality = "480p"
                 quality_display = "کیفیت متوسط (480p)"
             elif option_num == 3:
-                format_option = "134+140/bestvideo[height=360]+bestaudio/best[height=360]/best"
+                format_option = "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/best[height<=360][ext=mp4]/best[ext=mp4]/best"
                 quality = "360p"
                 quality_display = "کیفیت پایین (360p)"
             elif option_num == 4:
-                format_option = "133+140/bestvideo[height=240]+bestaudio/best[height=240]/best"
+                format_option = "bestvideo[ext=mp4][height<=240]+bestaudio[ext=m4a]/best[height<=240][ext=mp4]/best[ext=mp4]/best"
                 quality = "240p"
                 quality_display = "کیفیت خیلی پایین (240p)"
             elif option_num == 5:
@@ -3240,43 +3240,85 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             output_filename = f"{title}_{video_id}.mp3"
             output_path = get_unique_filename(TEMP_DOWNLOAD_DIR, output_filename)
             
-            # تنظیمات yt-dlp برای دانلود صوتی - با تاکید روی تبدیل به mp3
-            ydl_opts = {
-                'format': 'bestaudio[ext=m4a]/bestaudio/ba*',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                },
-                {
-                    # پردازشگر برای بهبود کیفیت صدا و اضافه کردن متادیتا
-                    'key': 'FFmpegMetadata',
-                    'add_metadata': True,
-                }],
-                'ffmpeg_location': '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
-                'outtmpl': output_path.replace('.mp3', '.%(ext)s'),
+            # روش جدید: ابتدا دانلود فایل ویدیویی با کیفیت خوب، سپس استخراج صدا
+            # مسیر فایل موقت ویدیویی
+            temp_video_path = output_path.replace('.mp3', '_temp_video.mp4')
+            
+            # تنظیمات yt-dlp برای دانلود ویدیویی با کیفیت خوب
+            video_ydl_opts = {
+                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',  # ترجیح فرمت ویدیویی
+                'outtmpl': temp_video_path,
                 'quiet': True,
                 'cookiefile': YOUTUBE_COOKIE_FILE,
                 'noplaylist': True,  # فقط ویدیوی اصلی، نه پلی‌لیست
+                'ffmpeg_location': '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
             }
             
-            # دانلود فایل - اصلاح متغیر loop
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # استفاده از روش ایمن برای دانلود بدون نیاز به loop
+            # دانلود ویدیو
+            logger.info(f"دانلود ویدیو برای استخراج صدا: {url[:30]}...")
+            with yt_dlp.YoutubeDL(video_ydl_opts) as ydl:
                 try:
                     # روش 1: دانلود مستقیم
                     ydl.download([url])
                 except Exception as e:
-                    logger.error(f"خطا در دانلود با روش اول: {e}")
-                    # روش 2: بدون استفاده از loop
+                    logger.error(f"خطا در دانلود ویدیو با روش اول: {e}")
+                    # روش 2: استفاده از ترد جداگانه
                     try:
-                        # ایجاد یک ترد جداگانه برای دانلود
                         import threading
                         download_thread = threading.Thread(target=ydl.download, args=([url],))
                         download_thread.start()
-                        download_thread.join(timeout=30)  # انتظار حداکثر 30 ثانیه
+                        download_thread.join(timeout=60)  # انتظار بیشتر
                     except Exception as e2:
-                        logger.error(f"خطا در دانلود با روش دوم: {e2}")
+                        logger.error(f"خطا در دانلود ویدیو با روش دوم: {e2}")
+            
+            # بررسی وجود فایل ویدیویی
+            if not os.path.exists(temp_video_path):
+                logger.error(f"فایل ویدیویی برای استخراج صدا دانلود نشد")
+                
+                # تلاش نهایی با روش اصلی yt-dlp برای صدا
+                ydl_opts = {
+                    'format': 'bestaudio/best',
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': '192',
+                    }],
+                    'ffmpeg_location': '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
+                    'outtmpl': output_path.replace('.mp3', '.%(ext)s'),
+                    'quiet': True,
+                    'cookiefile': YOUTUBE_COOKIE_FILE,
+                    'noplaylist': True,
+                }
+                
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    try:
+                        ydl.download([url])
+                    except Exception as e:
+                        logger.error(f"خطا در تلاش نهایی برای دانلود صدا: {e}")
+            else:
+                # استخراج صدا از ویدیو با کیفیت بالا
+                logger.info(f"استخراج صدا از ویدیو: {temp_video_path}")
+                
+                # استفاده از ماژول audio_processing برای استخراج صدا
+                try:
+                    from audio_processing import extract_audio
+                    audio_file = extract_audio(temp_video_path, 'mp3', '192k')
+                    
+                    if audio_file and os.path.exists(audio_file):
+                        # انتقال به مسیر مورد نظر
+                        shutil.move(audio_file, output_path)
+                        logger.info(f"صدا با موفقیت استخراج شد: {output_path}")
+                        
+                        # حذف فایل ویدیویی موقت
+                        try:
+                            os.remove(temp_video_path)
+                            logger.info("فایل ویدیویی موقت حذف شد")
+                        except Exception as e:
+                            logger.warning(f"خطا در حذف فایل ویدیویی موقت: {e}")
+                    else:
+                        logger.error("استخراج صدا ناموفق بود")
+                except Exception as e:
+                    logger.error(f"خطا در استخراج صدا: {e}")
             
             # بررسی وجود فایل mp3
             if not os.path.exists(output_path):
