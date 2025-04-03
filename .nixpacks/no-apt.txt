@@ -1,0 +1,4 @@
+aria2
+aria2c
+libaria2
+*aria2*

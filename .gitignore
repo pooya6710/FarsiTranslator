@@ -1,4 +1,4 @@
-# فایل‌های موقت پایتون و گیت
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -19,43 +19,35 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
-.git
-.pytest_cache
-.cache
 
-# لاگ‌ها
-*.log
-logs/
-debug_log.txt
-
-# محیط مجازی
+# Virtual environments
 venv/
 ENV/
+env/
+
+# Environment variables
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# فایل‌های دانلود شده
+# Aria2 related files - banned by Railway
+**/*aria2*
+**/aria2*
+**/*.aria2*
+
+# Temporary files and logs
+tmp/
+temp/
+*.log
+*.tmp
+debug_log.txt
 downloads/
-*.mp4
-*.mp3
-*.m4a
-*.webm
-*.jpg
-*.jpeg
-*.png
-*.webp
 
-# فایل‌های کوکی
-*.cookies
-*_cookies.txt
-
-# فایل‌های کش
-__pycache__/
-.cache/
-*_cache/
-
-# فایل‌های ویژه
-.DS_Store
+# IDE and editor files
 .idea/
 .vscode/
 *.swp
 *.swo
+.DS_Store

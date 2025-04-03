@@ -1,0 +1,30 @@
+# ignore any files with aria2 in the name
+**/*aria2*
+**/aria2*
+**/*.aria2*
+
+# ignore virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# ignore common development files
+.git
+.github
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# ignore debug files
+debug_log.txt
+**/*.log
+**/debug/

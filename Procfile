@@ -1,1 +1,1 @@
-worker: python yt_dlp_custom_override.py && python disable_aria2c.py && python telegram_downloader.py
+worker: bash railway_startup.sh

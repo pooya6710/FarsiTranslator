@@ -1,10 +1,19 @@
 [build]
-builder = "nixpacks"
-buildCommand = "echo 'Building the application...'"
+builder = "docker"
+buildCommand = "chmod +x .railway/clean.sh && ./.railway/clean.sh"
 
 [deploy]
-startCommand = "python yt_dlp_custom_override.py && python disable_aria2c.py && python telegram_downloader.py"
+startCommand = "bash railway_startup.sh"
 restartPolicyType = "always"
 
 [nixpacks]
 aptPackages = ["ffmpeg", "python3-dev"]
+dontInstallRecommends = true
+
+[build.args]
+SKIP_ARIA2 = "true"
+YDL_NO_ARIA2C = "1"
+HTTP_DOWNLOADER = "native"
+YTDLP_DOWNLOADER = "native"
+NO_EXTERNAL_DOWNLOADER = "1"
+YTDLP_NO_ARIA2 = "1"

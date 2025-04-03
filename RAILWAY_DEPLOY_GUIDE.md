@@ -135,13 +135,148 @@
 - **راه حل**: مطمئن شوید که کد شما پوشه `downloads` را قبل از استفاده ایجاد می‌کند. در محیط Railway، دایرکتوری کاری اپلیکیشن شما `/app` است (اگر از Dockerfile استفاده می‌کنید).
 
 ### مشکل 5: خطای "Banned Dependency Detected: aria2"
-- **راه حل 1**: فایل‌های `disable_aria2c.py` و `yt_dlp_custom_override.py` را به پروژه خود اضافه کنید. این فایل‌ها به صورت پیش‌گیرانه استفاده از aria2c را در yt-dlp غیرفعال می‌کنند.
-- **راه حل 2**: مطمئن شوید که هر دو فایل فوق قبل از اجرای برنامه اصلی اجرا می‌شوند. دستور اجرا باید به این صورت باشد:
-  ```
-  python yt_dlp_custom_override.py && python disable_aria2c.py && python telegram_downloader.py
-  ```
-- **راه حل 3**: مطمئن شوید که در تمام فایل‌های پروژه، هیچ اشاره‌ای به aria2c وجود ندارد. می‌توانید با دستور `grep -r "aria2" --include="*.py" .` این موضوع را بررسی کنید.
-- **راه حل 4 (قطعی)**: حتماً از Docker به جای Nixpacks استفاده کنید. در تنظیمات پروژه Railway، به بخش "Settings" بروید و "Builder" را روی "Docker" تنظیم کنید. مطمئن شوید که Dockerfile شما حاوی دستورات حذف aria2c است (مانند نمونه بالا).
+- **راه حل قطعی**: از فایل‌های زیر در پروژه خود استفاده کنید تا این مشکل به طور کامل برطرف شود:
+  
+  1. **complete_aria2_removal.py**: این اسکریپت جامع تمام اشارات به aria2 را از کد yt-dlp حذف می‌کند.
+  
+  2. **clean_ytdlp_patch.py**: این فایل به عنوان پشتیبان برای حذف aria2 از کد yt-dlp استفاده می‌شود.
+  
+  3. **railway_startup.sh**: این اسکریپت تمام مراحل لازم برای اطمینان از عدم وجود aria2 را انجام می‌دهد:
+     - حذف بسته‌های aria2 از سیستم
+     - حذف فایل‌های باینری aria2c
+     - اجرای تمام اسکریپت‌های پاکسازی
+     - تنظیم متغیرهای محیطی برای غیرفعال‌سازی aria2
+     - بررسی نهایی برای تأیید عدم وجود aria2
+
+  4. فایل‌های پیکربندی Railway:
+     ```
+     # Procfile
+     worker: bash railway_startup.sh
+     
+     # railway.toml
+     [build]
+     builder = "docker"
+     buildCommand = "chmod +x .railway/clean.sh && ./.railway/clean.sh"
+
+     [deploy]
+     startCommand = "bash railway_startup.sh"
+     restartPolicyType = "always"
+
+     [build.args]
+     SKIP_ARIA2 = "true"
+     YDL_NO_ARIA2C = "1"
+     HTTP_DOWNLOADER = "native"
+     YTDLP_DOWNLOADER = "native"
+     NO_EXTERNAL_DOWNLOADER = "1"
+     YTDLP_NO_ARIA2 = "1"
+     ```
+
+  5. حتماً از **Docker** به جای Nixpacks استفاده کنید. در تنظیمات پروژه Railway، به بخش "Settings" بروید و "Builder" را روی "Docker" تنظیم کنید.
+  
+  6. ساختار دایرکتوری‌های لازم را ایجاد کنید:
+     ```
+     mkdir -p .nixpacks
+     mkdir -p .railway
+     ```
+     
+  7. فایل‌های تکمیلی برای حذف کامل aria2:
+     ```
+     # .nixpacks/no-apt.txt
+     aria2
+     aria2c
+     libaria2
+     *aria2*
+     
+     # .nixpacks/environment.toml
+     [vars]
+     YDL_NO_ARIA2C = "1"
+     HTTP_DOWNLOADER = "native"
+     YTDLP_DOWNLOADER = "native"
+     NO_EXTERNAL_DOWNLOADER = "1"
+     YTDLP_NO_ARIA2 = "1"
+     
+     # .railway/clean.sh (chmod +x)
+     #!/bin/bash
+     echo "==== Railway Build Clean Script ===="
+     find / -name "aria2c" -type f -delete 2>/dev/null
+     find / -name "*aria2*" -type f -delete 2>/dev/null
+     find /app -type f -name "*.py" -exec sed -i 's/aria2c/disabled_downloader/g' {} \;
+     find /app -type f -name "*.py" -exec sed -i 's/aria2/disabled_tool/g' {} \;
+     ```
+     
+  8. اطمینان حاصل کنید که Dockerfile شما مانند نمونه زیر باشد:
+     ```Dockerfile
+     # استفاده از روش چندمرحله‌ای برای ایجاد تصویر نهایی بدون هیچ اشاره‌ای به aria2
+     FROM python:3.10-slim AS builder
+
+     # نصب ابزارهای مورد نیاز برای ساخت
+     RUN apt-get update && apt-get install -y \
+         ffmpeg \
+         python3-dev \
+         build-essential \
+         && apt-get clean \
+         && rm -rf /var/lib/apt/lists/*
+
+     # تنظیم دایرکتوری کاری
+     WORKDIR /build
+
+     # کپی فایل‌های پروژه و نصب وابستگی‌ها
+     COPY requirements.txt .
+
+     # نصب وابستگی‌های پایتون در محیط مجازی
+     RUN python -m venv /opt/venv
+     ENV PATH="/opt/venv/bin:$PATH"
+     RUN pip install --no-cache-dir --upgrade pip && \
+         pip install --no-cache-dir -r requirements.txt
+
+     # مرحله دوم: پاکسازی و ساخت تصویر نهایی
+     FROM python:3.10-slim
+
+     # تنظیم محیط کار
+     ENV PYTHONDONTWRITEBYTECODE=1 \
+         PYTHONUNBUFFERED=1 \
+         PATH="/opt/venv/bin:$PATH" \
+         PYTHONPATH="/app" \
+         NO_EXTERNAL_DOWNLOADER=1 \
+         YTDLP_NO_ARIA2=1
+
+     # نصب بسته‌های سیستمی مورد نیاز
+     RUN apt-get update && apt-get install -y \
+         ffmpeg \
+         python3-dev \
+         && apt-get clean \
+         && rm -rf /var/lib/apt/lists/*
+
+     # ایجاد دایرکتوری کاری
+     WORKDIR /app
+
+     # کپی محیط مجازی از مرحله قبل
+     COPY --from=builder /opt/venv /opt/venv
+
+     # کپی فایل‌های پروژه
+     COPY . .
+
+     # ایجاد دایرکتوری‌های مورد نیاز
+     RUN mkdir -p /app/downloads && chmod 777 /app/downloads \
+         && mkdir -p /tmp/ytdlp_temp && chmod 777 /tmp/ytdlp_temp
+
+     # حذف هرگونه اشاره به aria2
+     RUN python complete_aria2_removal.py
+
+     # تنظیم متغیرهای محیطی برای جلوگیری از استفاده از aria2
+     ENV YDL_NO_ARIA2C=1 \
+         HTTP_DOWNLOADER=native \
+         YTDLP_DOWNLOADER=native
+
+     # اطمینان از عدم وجود دستور aria2c
+     RUN echo "Checking for aria2c binary..." && \
+         ! command -v aria2c && \
+         echo "aria2c is not installed!" && \
+         echo "CONFIRMED: No aria2c in the final image."
+
+     # فایل اجرایی
+     CMD bash railway_startup.sh
+     ```
 
 ## پیشنهادات و نکات
 
