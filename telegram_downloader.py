@@ -1506,18 +1506,54 @@ class YouTubeDownloader:
                     
                 logger.info(f"استفاده از فرمت {format_spec} برای دانلود یوتیوب با کیفیت {quality}")
                     
-                # تنظیمات بیشتر برای بهبود کیفیت دانلود
+                # تنظیمات فوق‌العاده بهینه‌سازی شده برای افزایش چندبرابری سرعت دانلود
                 ydl_opts.update({
                     'format': format_spec,
                     'outtmpl': output_path,
                     'merge_output_format': 'mp4',  # ترکیب ویدیو و صدا در فرمت MP4
-                    'postprocessor_args': [
-                        # تنظیمات انکودر برای کنترل کیفیت
-                        '-c:v', 'libx264',  # انکودر ویدیو
-                        '-c:a', 'aac',  # انکودر صدا
-                        '-b:a', '128k',  # بیت‌ریت صدا
-                        '-preset', 'fast',  # سرعت انکود (کیفیت متوسط، سرعت بیشتر)
+                    'concurrent_fragment_downloads': 20,  # افزایش دانلود همزمان قطعات (20 قطعه) 
+                    'buffersize': 1024 * 1024 * 50,  # افزایش بافر به 50 مگابایت
+                    'http_chunk_size': 1024 * 1024 * 25,  # افزایش اندازه قطعات دانلود (25 مگابایت)
+                    'fragment_retries': 10,  # افزایش تلاش مجدد در صورت شکست دانلود قطعه
+                    'retry_sleep_functions': {'fragment': lambda x: 0.5},  # کاهش زمان انتظار بین تلاش‌های مجدد
+                    'live_from_start': True,
+                    'socket_timeout': 30,  # افزایش مهلت انتظار اتصال
+                    'retries': 10,  # افزایش تعداد تلاش‌های مجدد کلی
+                    'file_access_retries': 10,  # تلاش مجدد در صورت مشکل در دسترسی به فایل
+                    'extractor_retries': 5,  # تلاش‌های مجدد عمل استخراج
+                    'throttledratelimit': 0,  # حذف محدودیت سرعت
+                    'verbose': False,
+                    'progress_hooks': [],
+                    'noplaylist': True,
+                    'sleep_interval': 0,  # حذف تأخیر بین درخواست‌ها
+                    'max_sleep_interval': 0,  # حذف حداکثر تأخیر
+                    'external_downloader': 'aria2c',  # استفاده از دانلودر پیشرفته aria2c
+                    'external_downloader_args': [
+                        # تنظیمات aria2c برای سرعت بالا
+                        '-j', '16',  # دانلود 16 قطعه موازی
+                        '-x', '16',  # استفاده از 16 اتصال برای هر سرور
+                        '-s', '16',  # تقسیم به 16 قطعه
+                        '--min-split-size=1M',  # حداقل اندازه تقسیم 1 مگابایت
+                        '--stream-piece-selector=inorder',  # انتخاب قطعات به ترتیب
+                        '--optimize-concurrent-downloads=true',  # بهینه‌سازی دانلودهای همزمان
+                        '--http-accept-gzip=true',  # پشتیبانی از فشرده‌سازی gzip
+                        '--download-result=hide',  # حذف نتیجه‌های اضافی
+                        '--quiet=true',  # حالت بی‌صدا
                     ],
+                    'postprocessor_args': [
+                        # تنظیمات فوق‌سریع انکودر
+                        '-c:v', 'libx264',
+                        '-c:a', 'aac',
+                        '-b:a', '128k',
+                        '-preset', 'ultrafast',
+                        '-crf', '28',  # کیفیت پایین‌تر برای سرعت بیشتر
+                        '-threads', '8',  # استفاده از 8 هسته پردازشی
+                        '-tune', 'fastdecode',  # تنظیم برای دیکود سریع
+                        '-flags', '+cgop',  # فعال‌سازی Group of Pictures بسته
+                        '-movflags', '+faststart',  # بهینه‌سازی برای پخش سریع‌تر
+                        '-g', '30',  # هر 30 فریم یک keyframe
+                    ],
+                    'noprogress': True,  # عدم نمایش نوار پیشرفت
                 })
                 
             # بررسی پلی‌لیست
@@ -2119,7 +2155,7 @@ async def handle_download_option(update: Update, context: ContextTypes.DEFAULT_T
         await query.edit_message_text(STATUS_MESSAGES["downloading"])
         
         # بررسی اگر کالبک مربوط به دکمه "فقط صدا" است
-        if download_type == "audio" or option_id == "audio" or "audio" in callback_data:
+        if download_type == "audio" or option_id == "audio" or "audio" in callback_data or (download_type == "ig" and option_id == "audio"):
             logger.info(f"درخواست دانلود صوتی تشخیص داده شد برای URL: {url[:30]}...")
             
             # ارسال پیام در حال پردازش صدا
@@ -2865,11 +2901,15 @@ async def download_youtube_with_option(update: Update, context: ContextTypes.DEF
         is_audio = False
         format_id = selected_option.get('id', '')
         format_option = selected_option.get('format', '')
+        quality = selected_option.get('quality', 'best')  # تنظیم متغیر quality
+        
+        logger.info(f"اطلاعات گزینه انتخاب شده - format_id: {format_id}, format_option: {format_option}, quality: {quality}")
         
         # بررسی دقیق برای تشخیص دانلود صوتی
         if 'audio' in format_id.lower() or 'audio' in format_option.lower():
             is_audio = True
-            logger.info(f"درخواست دانلود صوتی از یوتیوب تشخیص داده شد: {format_id}")
+            quality = "audio"  # تنظیم کیفیت برای درخواست صوتی
+            logger.info(f"درخواست دانلود صوتی از یوتیوب تشخیص داده شد: {format_id}, quality تنظیم شد به: {quality}")
             await query.edit_message_text(STATUS_MESSAGES["downloading_audio"])
         else:
             await query.edit_message_text(STATUS_MESSAGES["downloading"])
@@ -3317,6 +3357,32 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             # مقدار is_audio را همیشه به False تنظیم می‌کنیم برای درخواست‌های ویدیویی
             # زیرا وقتی اینجا هستیم یعنی کاربر ویدیو درخواست کرده، نه صدا
             is_audio = False
+            
+            # اگر فایل با موفقیت دانلود شد، بررسی کنیم آیا نیاز به تبدیل کیفیت است
+            if downloaded_file and os.path.exists(downloaded_file) and quality and quality != "best" and not is_audio:
+                try:
+                    logger.info(f"تلاش برای تبدیل کیفیت ویدیوی دانلود شده به {quality}...")
+                    # استفاده از ماژول بهبود یافته برای تبدیل کیفیت
+                    try:
+                        from telegram_fixes import convert_video_quality
+                        converted_file = convert_video_quality(
+                            video_path=downloaded_file, 
+                            quality=quality,
+                            is_audio_request=is_audio
+                        )
+                        
+                        if converted_file and os.path.exists(converted_file):
+                            logger.info(f"تبدیل کیفیت موفق: {converted_file}")
+                            downloaded_file = converted_file
+                        else:
+                            logger.warning(f"تبدیل کیفیت ناموفق بود، استفاده از فایل اصلی")
+                    except ImportError:
+                        logger.warning("ماژول telegram_fixes یافت نشد، تبدیل کیفیت انجام نشد")
+                    except Exception as e:
+                        logger.error(f"خطا در تبدیل کیفیت ویدیو: {str(e)}")
+                except Exception as e:
+                    logger.error(f"خطا در تبدیل کیفیت ویدیو در تابع download_youtube: {str(e)}")
+                    # فایل اصلی را برمی‌گردانیم
             
             # بررسی اضافی برای اطمینان از صحت فرمت ویدیو
             if downloaded_file and downloaded_file.endswith(('.mp3', '.m4a', '.aac', '.wav')) and not downloaded_file.endswith(('.mp4', '.webm', '.mkv')):
