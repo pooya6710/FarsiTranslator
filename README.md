@@ -1,15 +1,10 @@
+# راه‌اندازی ربات تلگرام
 
-# Telegram Downloader Bot
+این پروژه برای اجرای ربات تلگرام موجود بدون تغییر در کد یا عملکرد آن طراحی شده است.
 
-A Telegram bot for downloading videos from Instagram and YouTube.
+## نحوه استفاده
 
-## Features
-- Download Instagram posts and reels
-- Download YouTube videos and shorts
-- Multiple quality options
-- Audio extraction support
+1. فایل‌های پروژه ربات خود را در دایرکتوری اصلی بارگذاری کنید.
+2. مطمئن شوید که توکن ربات تلگرام در متغیر محیطی `TELEGRAM_BOT_TOKEN` تنظیم شده است.
+3. اسکریپت `main.py` را اجرا کنید:
 
-## Setup
-1. Install dependencies
-2. Set TELEGRAM_BOT_TOKEN environment variable
-3. Run `python telegram_downloader.py`
