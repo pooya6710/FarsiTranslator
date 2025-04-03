@@ -16,7 +16,7 @@
 
 - `Procfile` - با محتوای زیر:
   ```
-  worker: python telegram_downloader.py
+  worker: python disable_aria2c.py && python telegram_downloader.py
   ```
 
 - `railway.toml` - با محتوای زیر:
@@ -26,7 +26,7 @@
   buildCommand = "echo 'Building the application...'"
 
   [deploy]
-  startCommand = "python telegram_downloader.py"
+  startCommand = "python disable_aria2c.py && python telegram_downloader.py"
   restartPolicyType = "always"
 
   [nixpacks]
@@ -51,8 +51,8 @@
   # نصب وابستگی‌های پایتون
   RUN pip install --no-cache-dir -r requirements.txt
 
-  # اجرای ربات
-  CMD ["python", "telegram_downloader.py"]
+  # اجرای ربات با غیرفعال‌سازی aria2c
+  CMD ["sh", "-c", "python disable_aria2c.py && python telegram_downloader.py"]
   ```
 
 ### گام 2: ثبت‌نام و ورود به Railway
@@ -108,6 +108,11 @@
 
 ### مشکل 4: خطای مربوط به دسترسی به فایل‌ها
 - **راه حل**: مطمئن شوید که کد شما پوشه `downloads` را قبل از استفاده ایجاد می‌کند. در محیط Railway، دایرکتوری کاری اپلیکیشن شما `/app` است (اگر از Dockerfile استفاده می‌کنید).
+
+### مشکل 5: خطای "Banned Dependency Detected: aria2"
+- **راه حل 1**: مطمئن شوید که فایل `disable_aria2c.py` در پروژه شما وجود دارد و قبل از اجرای برنامه اصلی اجرا می‌شود. این فایل به صورت پیش‌گیرانه استفاده از aria2c را در yt-dlp غیرفعال می‌کند.
+- **راه حل 2**: مطمئن شوید که در تمام فایل‌های پروژه، هیچ اشاره‌ای به aria2c وجود ندارد. می‌توانید با دستور `grep -r "aria2" --include="*.py" .` این موضوع را بررسی کنید.
+- **راه حل 3**: در صورتی که همچنان با این خطا مواجه هستید، می‌توانید کلاً از Docker استفاده کنید و در Dockerfile خود از یک تصویر پایه استفاده کنید که aria2c در آن وجود نداشته باشد.
 
 ## پیشنهادات و نکات
 

@@ -15,5 +15,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # در محیط Railway، متغیرهای محیطی از داشبورد Railway تنظیم می‌شوند
 # و به صورت خودکار در دسترس برنامه قرار می‌گیرند
 
-# اجرای ربات
-CMD ["python", "telegram_downloader.py"]
+# اجرای ربات با غیرفعال‌سازی aria2c
+CMD ["sh", "-c", "python disable_aria2c.py && python telegram_downloader.py"]

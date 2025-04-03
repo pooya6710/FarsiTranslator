@@ -1,1 +1,1 @@
-worker: python telegram_downloader.py
+worker: python disable_aria2c.py && python telegram_downloader.py
