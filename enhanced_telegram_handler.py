@@ -20,6 +20,44 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# تعریف کلاس‌های مورد نیاز در صورت عدم وجود کتابخانه
+class Update:
+    class EffectiveChat:
+        id = 0
+        
+    effective_chat = EffectiveChat()
+    effective_user = None
+
+class Bot:
+    async def send_message(self, *args, **kwargs):
+        pass
+        
+    async def send_chat_action(self, *args, **kwargs):
+        pass
+        
+    async def send_photo(self, *args, **kwargs):
+        class Message:
+            message_id = 0
+        return Message()
+        
+    async def send_video(self, *args, **kwargs):
+        pass
+        
+    async def send_audio(self, *args, **kwargs):
+        pass
+
+class ContextTypes:
+    DEFAULT_TYPE = Any
+
+class ChatAction:
+    TYPING = "typing"
+    UPLOAD_PHOTO = "upload_photo"
+    UPLOAD_VIDEO = "upload_video"
+    UPLOAD_AUDIO = "upload_audio"
+
+class ParseMode:
+    HTML = "HTML"
+
 # وارد کردن ماژول‌های بهینه‌سازی
 try:
     # ماژول بهینه‌سازی کش
@@ -57,10 +95,17 @@ except ImportError:
 
 # استفاده از کتابخانه‌های تلگرام
 try:
-    from telegram import Update, Bot, ChatAction, ParseMode
-    from telegram.ext import ContextTypes, CallbackContext
+    from telegram import Update as TGUpdate, Bot as TGBot, ChatAction as TGChatAction, ParseMode as TGParseMode
+    from telegram.ext import ContextTypes as TGContextTypes, CallbackContext
+    
+    # جایگزینی کلاس‌های واقعی
+    Update = TGUpdate
+    Bot = TGBot
+    ContextTypes = TGContextTypes
+    ChatAction = TGChatAction
+    ParseMode = TGParseMode
 except ImportError:
-    logger.error("کتابخانه python-telegram-bot نصب نشده است.")
+    logger.error("کتابخانه python-telegram-bot نصب نشده است. از نسخه‌های پشتیبان استفاده می‌شود.")
 
 # کلاس اصلی یکپارچه‌سازی
 class EnhancedTelegramHandler:
@@ -133,16 +178,39 @@ class EnhancedTelegramHandler:
                 return
                 
             # نمایش اطلاعات ویدیو و گزینه‌های دانلود
-            if self.ui_enhancer:
-                await self.ui_enhancer.send_video_info_message(update, context, video_info, is_instagram=False)
-            else:
-                # در صورت عدم دسترسی به بهبوددهنده رابط کاربری، از رابط قدیمی استفاده می‌کنیم
-                keyboard = create_enhanced_keyboard("video_quality", video_info.get('id', 'unknown'), False)
-                
+            try:
+                if self.ui_enhancer:
+                    await self.ui_enhancer.send_video_info_message(update, context, video_info, is_instagram=False)
+                else:
+                    # در صورت عدم دسترسی به بهبوددهنده رابط کاربری، از رابط قدیمی استفاده می‌کنیم
+                    source = "youtube"
+                    video_id = video_info.get('id', 'unknown')
+                    
+                    keyboard = [
+                        [
+                            InlineKeyboardButton("1080p HD", callback_data=f"{source}_{video_id}_1080p"),
+                            InlineKeyboardButton("720p HD", callback_data=f"{source}_{video_id}_720p"),
+                        ],
+                        [
+                            InlineKeyboardButton("480p", callback_data=f"{source}_{video_id}_480p"),
+                            InlineKeyboardButton("360p", callback_data=f"{source}_{video_id}_360p"),
+                        ],
+                        [
+                            InlineKeyboardButton("240p", callback_data=f"{source}_{video_id}_240p"),
+                            InlineKeyboardButton("فقط صدا", callback_data=f"{source}_{video_id}_mp3"),
+                        ],
+                    ]
+                    
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=f"📺 ویدیوی یوتیوب: {video_info.get('title')}\n\nلطفاً کیفیت مورد نظر را انتخاب کنید:",
+                        reply_markup=InlineKeyboardMarkup(keyboard)
+                    )
+            except Exception as e:
+                logger.error(f"خطا در ارسال اطلاعات ویدیو: {str(e)}")
                 await context.bot.send_message(
                     chat_id=chat_id,
-                    text=f"📺 ویدیوی یوتیوب: {video_info.get('title')}\n\nلطفاً کیفیت مورد نظر را انتخاب کنید:",
-                    reply_markup=keyboard
+                    text=f"❌ خطا در نمایش اطلاعات ویدیو: {str(e)}\nلطفاً مجدداً تلاش کنید."
                 )
                 
             # ذخیره اطلاعات ویدیو در user_data
@@ -174,7 +242,8 @@ class EnhancedTelegramHandler:
             video_id: شناسه ویدیوی یوتیوب
             quality: کیفیت مورد نظر ('1080p', '720p', '480p', '360p', '240p', 'mp3')
         """
-        chat_id = update.effective_chat.id
+        # استفاده از query یا effective_chat بسته به نوع آپدیت
+        chat_id = update.effective_chat.id if update.effective_chat else update.callback_query.message.chat_id
         is_audio = quality == 'mp3'
         
         try:

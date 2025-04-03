@@ -20,114 +20,171 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-try:
-    from telegram import (
-        InlineKeyboardButton, InlineKeyboardMarkup, Update, 
-        InputMediaPhoto, InputMediaVideo, Bot, ParseMode,
-        ChatAction
-    )
-    from telegram.ext import ContextTypes, CallbackContext
-except ImportError:
-    logger.error("کتابخانه python-telegram-bot نصب نشده است.")
+# تعریف کلاس‌های مورد نیاز در صورت عدم وجود کتابخانه
+class Update:
+    pass
+
+class Bot:
+    pass
+
+class ContextTypes:
+    DEFAULT_TYPE = Any
+
+class ParseMode:
+    HTML = "HTML"
+
+class ChatAction:
+    TYPING = "typing"
+    UPLOAD_PHOTO = "upload_photo"
+    UPLOAD_VIDEO = "upload_video"
+    UPLOAD_AUDIO = "upload_audio"
     
-# آیکون‌های یونیکد برای استفاده در پیام‌ها
+class InlineKeyboardButton:
+    def __init__(self, text, callback_data=None):
+        self.text = text
+        self.callback_data = callback_data
+
+class InlineKeyboardMarkup:
+    def __init__(self, inline_keyboard):
+        self.inline_keyboard = inline_keyboard
+
+try:
+    # اگر کتابخانه موجود باشد، از آن استفاده می‌کنیم
+    from telegram import (
+        InlineKeyboardButton as TGInlineKeyboardButton, 
+        InlineKeyboardMarkup as TGInlineKeyboardMarkup, 
+        Update as TGUpdate, 
+        InputMediaPhoto, InputMediaVideo, Bot as TGBot, ParseMode as TGParseMode,
+        ChatAction as TGChatAction
+    )
+    from telegram.ext import ContextTypes as TGContextTypes, CallbackContext
+    
+    # جایگزینی کلاس‌های واقعی
+    Update = TGUpdate
+    Bot = TGBot
+    ContextTypes = TGContextTypes
+    ParseMode = TGParseMode
+    ChatAction = TGChatAction
+    InlineKeyboardButton = TGInlineKeyboardButton
+    InlineKeyboardMarkup = TGInlineKeyboardMarkup
+except ImportError:
+    logger.error("کتابخانه python-telegram-bot نصب نشده است. از نسخه‌های پشتیبان استفاده می‌شود.")
+    
+# آیکون‌های یونیکد برای استفاده در پیام‌ها - بهبود یافته با آیکون‌های جذاب‌تر
 ICONS = {
-    "download": "⬇️",
+    "download": "🚀", # قبلاً: ⬇️
     "video": "🎬",
-    "audio": "🎵",
-    "photo": "📷",
+    "audio": "🎧", # قبلاً: 🎵
+    "photo": "🖼️", # قبلاً: 📷
     "youtube": "📺",
-    "instagram": "📱",
+    "instagram": "📸", # قبلاً: 📱
     "settings": "⚙️",
-    "help": "❓",
-    "info": "ℹ️",
-    "warning": "⚠️",
-    "error": "❌",
-    "success": "✅",
-    "wait": "⏳",
-    "time": "⏱️",
-    "size": "📊",
-    "quality": "🔍",
-    "like": "👍",
-    "view": "👁️",
-    "date": "📅",
+    "help": "💡", # قبلاً: ❓
+    "info": "📌", # قبلاً: ℹ️
+    "warning": "🔔", # قبلاً: ⚠️
+    "error": "⛔", # قبلاً: ❌
+    "success": "✨", # قبلاً: ✅
+    "wait": "⏱️", # قبلاً: ⏳
+    "time": "🕒", # قبلاً: ⏱️
+    "size": "💾", # قبلاً: 📊
+    "quality": "🔎", # قبلاً: 🔍
+    "like": "❤️", # قبلاً: 👍
+    "view": "👀", # قبلاً: 👁️
+    "date": "📆", # قبلاً: 📅
     "user": "👤",
-    "back": "🔙",
-    "cancel": "❌",
-    "next": "⏩",
-    "prev": "⏪",
+    "back": "◀️", # قبلاً: 🔙
+    "cancel": "🚫", # قبلاً: ❌
+    "next": "▶️", # قبلاً: ⏩
+    "prev": "◀️", # قبلاً: ⏪
     "play": "▶️",
     "pause": "⏸️",
+    "save": "💾",
+    "link": "🔗",
+    "star": "⭐",
+    "progress": "📊",
+    "speed": "⚡",
+    "hd": "🔷",
+    "4k": "💎",
     "refresh": "🔄",
     "link": "🔗",
     "file": "📁",
     "progress": "📶",
 }
 
-# قالب‌های HTML برای پیام‌های بهتر
+# قالب‌های HTML برای پیام‌های زیباتر با طراحی بهبود یافته
 HTML_TEMPLATES = {
     "video_info": """
+<b>〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️</b>
 <b>{icon_video} {title}</b>
 
-<b>{icon_user} کانال:</b> {uploader}
-<b>{icon_time} مدت زمان:</b> {duration}
-<b>{icon_view} بازدید:</b> {view_count}
-<b>{icon_like} پسند:</b> {like_count}
-<b>{icon_date} تاریخ انتشار:</b> {upload_date}
+<b>{icon_user} کانال:</b> <code>{uploader}</code>
+<b>{icon_time} مدت زمان:</b> <code>{duration}</code>
+<b>{icon_view} بازدید:</b> <code>{view_count}</code>
+<b>{icon_like} پسند:</b> <code>{like_count}</code>
+<b>{icon_date} تاریخ انتشار:</b> <code>{upload_date}</code>
 
 <b>{icon_info} توضیحات:</b>
-{description}
+<i>{description}</i>
 
-<i>{icon_quality} لطفاً کیفیت مورد نظر را انتخاب کنید:</i>
+<b>〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️</b>
+<b>{icon_quality} لطفاً کیفیت مورد نظر را انتخاب کنید:</b>
 """,
     
     "download_started": """
+<b>━━━━━━━━━━━━━━━━━━━━━━</b>
 <b>{icon_wait} در حال دانلود...</b>
 
-<b>{icon_video} عنوان:</b> {title}
-<b>{icon_quality} کیفیت:</b> {quality}
+<b>{icon_video} عنوان:</b> <code>{title}</code>
+<b>{icon_quality} کیفیت:</b> <code>{quality}</code>
 
-<i>لطفاً صبر کنید...</i>
+<i>لطفاً صبر کنید... {icon_download}</i>
+<b>━━━━━━━━━━━━━━━━━━━━━━</b>
 """,
     
     "download_complete": """
-<b>{icon_success} دانلود کامل شد!</b>
+<b>╭───────────────────────╮</b>
+<b>│  {icon_success} دانلود کامل شد!  │</b>
+<b>╰───────────────────────╯</b>
 
-<b>{icon_video} عنوان:</b> {title}
-<b>{icon_quality} کیفیت:</b> {quality}
-<b>{icon_size} حجم فایل:</b> {file_size}
-<b>{icon_time} زمان دانلود:</b> {download_time}
+<b>{icon_video} عنوان:</b> <code>{title}</code>
+<b>{icon_quality} کیفیت:</b> <code>{quality}</code>
+<b>{icon_size} حجم فایل:</b> <code>{file_size}</code>
+<b>{icon_time} زمان دانلود:</b> <code>{download_time}</code>
 
-<i>فایل در حال ارسال است...</i>
+<i>فایل در حال ارسال است... {icon_download}</i>
 """,
     
     "download_failed": """
-<b>{icon_error} خطا در دانلود!</b>
+<b>╭───────────────────────╮</b>
+<b>│  {icon_error} خطا در دانلود!  │</b>
+<b>╰───────────────────────╯</b>
 
-<b>{icon_video} عنوان:</b> {title}
-<b>{icon_quality} کیفیت:</b> {quality}
-<b>{icon_info} علت خطا:</b> {error_reason}
+<b>{icon_video} عنوان:</b> <code>{title}</code>
+<b>{icon_quality} کیفیت:</b> <code>{quality}</code>
+<b>{icon_info} علت خطا:</b> <code>{error_reason}</code>
 
 <i>لطفاً مجدداً تلاش کنید یا کیفیت دیگری را انتخاب کنید.</i>
 """,
     
     "progress_bar": """
-<b>{icon_download} در حال دانلود... {percent}%</b>
-{progress_bar}
-<b>{icon_size} حجم:</b> {downloaded}/{total}
-<b>{icon_time} سرعت:</b> {speed}/s
-<b>{icon_time} زمان باقیمانده:</b> {eta}
+<b>{icon_download} در حال دانلود... <code>{percent}%</code></b>
+<code>{progress_bar}</code>
+<b>{icon_size} حجم:</b> <code>{downloaded}</code>/<code>{total}</code>
+<b>{icon_speed} سرعت:</b> <code>{speed}/s</code>
+<b>{icon_wait} زمان باقیمانده:</b> <code>{eta}</code>
 """,
     
     "bulk_status": """
-<b>{icon_info} وضعیت دانلودهای موازی</b>
+<b>╭───────────────────────╮</b>
+<b>│ {icon_download} دانلود موازی │</b>
+<b>╰───────────────────────╯</b>
 
-<b>{icon_link} شناسه دسته:</b> {batch_id}
-<b>{icon_download} تعداد کل:</b> {total_count}
-<b>{icon_success} تکمیل شده:</b> {completed_count}
-<b>{icon_wait} در انتظار:</b> {pending_count}
-<b>{icon_error} خطا:</b> {failed_count}
-<b>{icon_progress} پیشرفت کلی:</b> {overall_progress}%
+<b>{icon_link} شناسه دسته:</b> <code>{batch_id}</code>
+<b>{icon_download} تعداد کل:</b> <code>{total_count}</code>
+<b>{icon_success} تکمیل شده:</b> <code>{completed_count}</code>
+<b>{icon_wait} در انتظار:</b> <code>{pending_count}</code>
+<b>{icon_error} خطا:</b> <code>{failed_count}</code>
+<b>{icon_progress} پیشرفت کلی:</b> <code>{overall_progress}%</code>
 
 {progress_details}
 """,
@@ -156,7 +213,7 @@ class TelegramUIEnhancer:
     
     def create_video_quality_keyboard(self, video_id: str, is_instagram: bool = False) -> InlineKeyboardMarkup:
         """
-        ایجاد کیبورد انتخاب کیفیت ویدیو
+        ایجاد کیبورد انتخاب کیفیت ویدیو با طراحی زیباتر
         
         Args:
             video_id: شناسه ویدیو
@@ -166,23 +223,26 @@ class TelegramUIEnhancer:
             کیبورد درون‌خطی تلگرام
         """
         source = "instagram" if is_instagram else "youtube"
+        source_icon = "📸" if is_instagram else "📺"
         
         keyboard = [
             [
-                InlineKeyboardButton("1080p 📺", callback_data=f"{source}_{video_id}_1080p"),
-                InlineKeyboardButton("720p 📱", callback_data=f"{source}_{video_id}_720p"),
+                InlineKeyboardButton(f"🔷 با کیفیت بالا (HD) 1080p", callback_data=f"{source}_{video_id}_1080p"),
             ],
             [
-                InlineKeyboardButton("480p 🔍", callback_data=f"{source}_{video_id}_480p"),
-                InlineKeyboardButton("360p 💡", callback_data=f"{source}_{video_id}_360p"),
+                InlineKeyboardButton(f"✨ کیفیت عالی 720p", callback_data=f"{source}_{video_id}_720p"),
             ],
             [
-                InlineKeyboardButton("240p 🔎", callback_data=f"{source}_{video_id}_240p"),
-                InlineKeyboardButton("صدا 🎵", callback_data=f"{source}_{video_id}_mp3"),
+                InlineKeyboardButton(f"⚡ کیفیت متوسط 480p", callback_data=f"{source}_{video_id}_480p"),
+                InlineKeyboardButton(f"💡 کیفیت کم حجم 360p", callback_data=f"{source}_{video_id}_360p"),
             ],
             [
-                InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"refresh_{source}_{video_id}"),
-                InlineKeyboardButton("❌ لغو", callback_data=f"cancel_{video_id}"),
+                InlineKeyboardButton(f"🔎 کیفیت ضعیف 240p", callback_data=f"{source}_{video_id}_240p"),
+                InlineKeyboardButton(f"🎧 فقط صدا (MP3)", callback_data=f"{source}_{video_id}_mp3"),
+            ],
+            [
+                InlineKeyboardButton(f"🔄 بروزرسانی", callback_data=f"refresh_{source}_{video_id}"),
+                InlineKeyboardButton(f"🚫 لغو", callback_data=f"cancel_{video_id}"),
             ]
         ]
         
@@ -190,7 +250,7 @@ class TelegramUIEnhancer:
     
     def create_bulk_download_keyboard(self, batch_id: str) -> InlineKeyboardMarkup:
         """
-        ایجاد کیبورد مدیریت دانلودهای موازی
+        ایجاد کیبورد مدیریت دانلودهای موازی با طراحی زیباتر
         
         Args:
             batch_id: شناسه دسته دانلود
@@ -204,10 +264,14 @@ class TelegramUIEnhancer:
             ],
             [
                 InlineKeyboardButton("⏸️ توقف موقت", callback_data=f"pause_batch_{batch_id}"),
-                InlineKeyboardButton("▶️ ادامه", callback_data=f"resume_batch_{batch_id}"),
+                InlineKeyboardButton("▶️ ادامه دانلودها", callback_data=f"resume_batch_{batch_id}"),
             ],
             [
-                InlineKeyboardButton("❌ لغو دانلودها", callback_data=f"cancel_batch_{batch_id}"),
+                InlineKeyboardButton("⚡ افزایش سرعت", callback_data=f"boost_batch_{batch_id}"),
+                InlineKeyboardButton("📊 گزارش وضعیت", callback_data=f"stats_batch_{batch_id}"),
+            ],
+            [
+                InlineKeyboardButton("🚫 لغو دانلودها", callback_data=f"cancel_batch_{batch_id}"),
             ]
         ]
         
@@ -215,22 +279,27 @@ class TelegramUIEnhancer:
     
     def create_help_keyboard(self) -> InlineKeyboardMarkup:
         """
-        ایجاد کیبورد راهنما
+        ایجاد کیبورد راهنما با طراحی بهبود یافته
         
         Returns:
             کیبورد درون‌خطی تلگرام
         """
         keyboard = [
             [
-                InlineKeyboardButton("📱 راهنمای اینستاگرام", callback_data="help_instagram"),
+                InlineKeyboardButton("📸 راهنمای اینستاگرام", callback_data="help_instagram"),
+            ],
+            [
                 InlineKeyboardButton("📺 راهنمای یوتیوب", callback_data="help_youtube"),
             ],
             [
-                InlineKeyboardButton("📊 دانلود موازی", callback_data="help_bulk"),
-                InlineKeyboardButton("🔍 رفع خطاها", callback_data="help_errors"),
+                InlineKeyboardButton("⚡ دانلود موازی", callback_data="help_bulk"),
+                InlineKeyboardButton("💡 رفع خطاها", callback_data="help_errors"),
             ],
             [
-                InlineKeyboardButton("ℹ️ درباره ربات", callback_data="about"),
+                InlineKeyboardButton("✨ امکانات جدید", callback_data="new_features"),
+            ],
+            [
+                InlineKeyboardButton("💎 درباره ربات", callback_data="about"),
             ]
         ]
         
@@ -335,9 +404,9 @@ class TelegramUIEnhancer:
         except:
             return date_str
     
-    def create_progress_bar(self, percent: float, length: int = 10) -> str:
+    def create_progress_bar(self, percent: float, length: int = 15) -> str:
         """
-        ایجاد نوار پیشرفت گرافیکی
+        ایجاد نوار پیشرفت گرافیکی بهبود یافته
         
         Args:
             percent: درصد پیشرفت (0 تا 100)
@@ -346,8 +415,27 @@ class TelegramUIEnhancer:
         Returns:
             نوار پیشرفت گرافیکی
         """
+        # اطمینان از محدوده صحیح درصد
+        percent = max(0, min(100, percent))
+        
+        # محاسبه طول نوار پر شده
         filled_length = int(length * percent / 100)
-        bar = '█' * filled_length + '░' * (length - filled_length)
+        
+        # استفاده از کاراکترهای زیباتر برای نوار پیشرفت
+        # █ ▓ ▒ ░
+        progress_chars = {
+            'start': '▕',      # کاراکتر شروع نوار 
+            'end': '▏',        # کاراکتر پایان نوار
+            'filled': '█',     # کاراکتر بخش پر شده
+            'empty': '░',      # کاراکتر بخش خالی
+        }
+        
+        # ایجاد نوار پیشرفت با طراحی زیباتر
+        bar = progress_chars['start'] + \
+              progress_chars['filled'] * filled_length + \
+              progress_chars['empty'] * (length - filled_length) + \
+              progress_chars['end']
+              
         return bar
     
     async def send_video_info_message(self, 
