@@ -21,8 +21,46 @@ import yt_dlp
 from audio_processing import extract_audio, is_video_file, is_audio_file
 
 # تنظیم مسیر پیشفرض ffmpeg
-FFMPEG_PATH = '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg'
-FFPROBE_PATH = '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffprobe'
+def get_ffmpeg_path():
+    """تشخیص خودکار مسیر ffmpeg براساس محیط اجرا"""
+    # مسیر اصلی در Replit
+    replit_path = '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg'
+    if os.path.exists(replit_path):
+        return replit_path
+    
+    # در محیط Railway یا سایر محیط‌های لینوکس
+    try:
+        ffmpeg_path = subprocess.check_output(['which', 'ffmpeg']).decode('utf-8').strip()
+        if ffmpeg_path:
+            return ffmpeg_path
+    except:
+        pass
+    
+    return 'ffmpeg'  # استفاده از ffmpeg موجود در مسیر سیستم
+
+def get_ffprobe_path():
+    """تشخیص خودکار مسیر ffprobe براساس محیط اجرا"""
+    # مسیر اصلی در Replit
+    replit_path = '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffprobe'
+    if os.path.exists(replit_path):
+        return replit_path
+    
+    # در محیط Railway یا سایر محیط‌های لینوکس
+    try:
+        ffprobe_path = subprocess.check_output(['which', 'ffprobe']).decode('utf-8').strip()
+        if ffprobe_path:
+            return ffprobe_path
+    except:
+        pass
+    
+    return 'ffprobe'  # استفاده از ffprobe موجود در مسیر سیستم
+
+FFMPEG_PATH = get_ffmpeg_path()
+FFPROBE_PATH = get_ffprobe_path()
+
+# لاگ کردن مسیرهای تشخیص داده شده
+logging.info(f"مسیر ffmpeg: {FFMPEG_PATH}")
+logging.info(f"مسیر ffprobe: {FFPROBE_PATH}")
 
 # راه‌اندازی لاگر
 logging.basicConfig(
@@ -36,7 +74,7 @@ DEFAULT_DOWNLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 os.makedirs(DEFAULT_DOWNLOAD_DIR, exist_ok=True)
 
 # تنظیمات FFmpeg
-DEFAULT_FFMPEG_PATH = '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg'
+DEFAULT_FFMPEG_PATH = FFMPEG_PATH  # استفاده از مسیر تشخیص داده شده
 
 # تعیین کیفیت‌های استاندارد ویدیو با گزینه‌های پیشرفته
 # نقشه کیفیت‌های ویدیو با مشخصات کامل برای پردازش
@@ -158,7 +196,7 @@ YDL_OPTS_BASE = {
         'Accept-Language': 'en-US,en;q=0.5',
         'Referer': 'https://www.google.com/',
     },
-    'ffmpeg_location': '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg'
+    'ffmpeg_location': FFMPEG_PATH  # استفاده از مسیر تشخیص داده شده
 }
 
 def get_unique_filename(directory: str, filename: str) -> str:
@@ -300,7 +338,7 @@ async def download_with_quality(url: str, quality: str = 'best', is_audio: bool 
                     '-ac', '2',      # تعداد کانال‌ها (استریو)
                     '-b:a', '192k',  # بیت‌ریت
                 ],
-                'ffmpeg_location': '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',  # تنظیم مسیر اختصاصی ffmpeg
+                'ffmpeg_location': FFMPEG_PATH,  # تنظیم مسیر تشخیص داده شده خودکار
                 'prefer_ffmpeg': True,  # ترجیح استفاده از ffmpeg
             })
             output_template = os.path.join(DEFAULT_DOWNLOAD_DIR, f'{source_type}_audio_{download_id}.%(ext)s')
@@ -468,7 +506,7 @@ async def download_with_quality(url: str, quality: str = 'best', is_audio: bool 
                 audio_path = os.path.join(output_dir, f"{file_name}_audio.mp3")
                 
                 cmd = [
-                    '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
+                    FFMPEG_PATH,  # استفاده از مسیر تشخیص داده شده خودکار
                     '-i', downloaded_file,
                     '-vn',  # بدون ویدیو
                     '-acodec', 'libmp3lame',
@@ -679,7 +717,7 @@ def method_ffmpeg_advanced(video_path: str, quality: str, target_height: int, ou
     
     # بررسی ارتفاع فعلی ویدیو
     ffprobe_cmd = [
-        '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffprobe', 
+        FFPROBE_PATH,  # استفاده از مسیر تشخیص داده شده
         '-v', 'error', 
         '-select_streams', 'v:0',
         '-show_entries', 'stream=width,height', 
@@ -729,7 +767,7 @@ def method_ffmpeg_advanced(video_path: str, quality: str, target_height: int, ou
     
     # دستور ffmpeg فوق‌بهینه با پارامترهای تنظیم شده برای سرعت چندبرابری
     cmd = [
-        '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg', 
+        FFMPEG_PATH, 
         '-hwaccel', 'auto',    # استفاده خودکار از شتاب‌دهنده سخت‌افزاری اگر موجود باشد
         '-i', video_path,
         '-c:v', 'libx264',     # کدک ویدیو
@@ -807,7 +845,7 @@ def method_ffmpeg_simple(video_path: str, quality: str, target_height: int, outp
     
     # دستور ffmpeg ساده‌تر با تنظیمات بهینه شده برای سرعت
     cmd = [
-        '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg', 
+        FFMPEG_PATH, 
         '-i', video_path,
         '-vf', f'scale=-2:{target_height}',  # فیلتر مقیاس‌بندی بسیار ساده
         '-c:v', 'libx264',             # کدک ویدیو (سازگاری بالا)
@@ -873,7 +911,7 @@ def method_ffmpeg_native(video_path: str, quality: str, target_height: int, outp
     
     # ایجاد دستوری ساده و بومی برای تبدیل ویدیو
     cmd = [
-        '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg', 
+        FFMPEG_PATH, 
         '-i', video_path,
         '-vf', f'scale=-2:{target_height}',
         '-c:v', 'libx264',
@@ -934,7 +972,7 @@ def method_fallback(video_path: str, quality: str, target_height: int, output_pa
     
     # ساده‌ترین دستور ممکن برای تبدیل ویدیو
     cmd = [
-        '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg', 
+        FFMPEG_PATH, 
         '-i', video_path,
         '-s', f'?x{target_height}',  # تنظیم مستقیم اندازه
         '-c:v', 'libx264',
@@ -1036,7 +1074,7 @@ def fallback_convert_video(video_path: str, quality: str) -> str:
         
         # استفاده از دستور ساده‌تر ffmpeg با پارامترهای حداقلی اما مطمئن
         cmd = [
-            '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg', 
+            FFMPEG_PATH, 
             '-i', video_path, 
             '-vf', scale_filter,           # فیلتر مقیاس بندی ساده‌تر
             '-c:v', 'libx264',             # استفاده از کدک قدرتمند
@@ -1154,7 +1192,7 @@ def extract_audio_from_video(video_path: str, output_format: str = 'mp3', bitrat
                     'preferredcodec': output_format,
                     'preferredquality': bitrate.replace('k', ''),
                 }],
-                'ffmpeg_location': '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
+                'ffmpeg_location': FFMPEG_PATH,
                 'quiet': True,
                 'no_warnings': True,
             }
@@ -1188,7 +1226,7 @@ def extract_audio_from_video(video_path: str, output_format: str = 'mp3', bitrat
             logger.info("روش 4: استفاده مستقیم از FFmpeg")
             # آماده‌سازی دستور FFmpeg با تنظیمات پیشرفته
             cmd = [
-                '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
+                FFMPEG_PATH,
                 '-i', video_path,
                 '-vn',            # حذف ویدیو
                 '-acodec', 'libmp3lame' if output_format == 'mp3' else 'aac' if output_format == 'm4a' else 'flac' if output_format == 'flac' else 'copy',
@@ -1223,7 +1261,7 @@ def extract_audio_from_video(video_path: str, output_format: str = 'mp3', bitrat
             logger.info("روش 5: استفاده از FFmpeg (ساده)")
             # دستور ساده‌تر برای استخراج صدا
             cmd = [
-                '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
+                FFMPEG_PATH,
                 '-i', video_path,
                 '-vn',               # حذف ویدیو
                 '-acodec', 'copy',   # کدک صدا را تغییر نده، فقط کپی کن
@@ -1254,9 +1292,9 @@ def extract_audio_from_video(video_path: str, output_format: str = 'mp3', bitrat
             logger.info("روش 6: استفاده از FFmpeg در مسیرهای جایگزین")
             # لیستی از مسیرهای احتمالی ffmpeg
             ffmpeg_paths = [
-                '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
+                FFMPEG_PATH,
                 'ffmpeg',
-                '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
+                FFMPEG_PATH,
                 '/usr/local/bin/ffmpeg',
                 '/opt/homebrew/bin/ffmpeg',
                 '/opt/local/bin/ffmpeg',

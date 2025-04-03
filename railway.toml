@@ -1,0 +1,10 @@
+[build]
+builder = "nixpacks"
+buildCommand = "echo 'Building the application...'"
+
+[deploy]
+startCommand = "python telegram_downloader.py"
+restartPolicyType = "always"
+
+[nixpacks]
+aptPackages = ["ffmpeg", "python3-dev"]

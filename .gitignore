@@ -1,0 +1,61 @@
+# فایل‌های موقت پایتون و گیت
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+.git
+.pytest_cache
+.cache
+
+# لاگ‌ها
+*.log
+logs/
+debug_log.txt
+
+# محیط مجازی
+venv/
+ENV/
+.env
+
+# فایل‌های دانلود شده
+downloads/
+*.mp4
+*.mp3
+*.m4a
+*.webm
+*.jpg
+*.jpeg
+*.png
+*.webp
+
+# فایل‌های کوکی
+*.cookies
+*_cookies.txt
+
+# فایل‌های کش
+__pycache__/
+.cache/
+*_cache/
+
+# فایل‌های ویژه
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

@@ -1860,7 +1860,7 @@ async def process_instagram_url(update: Update, context: ContextTypes.DEFAULT_TY
             )
             
             # تفکیک دکمه‌ها بر اساس نوع
-            if option.get('type') == 'audio' and "audio" in option.get("quality", "").lower():
+            if option.get('type') == 'audio' or "audio" in option.get("quality", "").lower():
                 audio_buttons.append([button])
             else:
                 video_buttons.append([button])
@@ -1868,11 +1868,11 @@ async def process_instagram_url(update: Update, context: ContextTypes.DEFAULT_TY
         # افزودن دکمه‌های ویدیو
         keyboard.extend(video_buttons)
         
-        # اطمینان از نمایش فقط یک دکمه‌ی صوتی
-        # اگر هیچ دکمه‌ی صوتی وجود نداشته باشد، یک دکمه اضافه می‌کنیم
-        # در غیر این صورت، هیچ دکمه‌ای اضافه نمی‌کنیم چون قبلاً اضافه شده‌اند
-        if not audio_buttons:
-            # افزودن دکمه با نام "فقط صدا" و callback_data مخصوص صدا
+        # افزودن دکمه‌های صوتی
+        if audio_buttons:
+            keyboard.extend(audio_buttons)
+        else:
+            # اگر هیچ دکمه صوتی وجود نداشته باشد، یک دکمه اضافه می‌کنیم
             keyboard.append([InlineKeyboardButton("🎵 فقط صدا (MP3)", callback_data=f"dl_ig_audio_{url_id}")])
             
         reply_markup = InlineKeyboardMarkup(keyboard)
