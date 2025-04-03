@@ -3,7 +3,7 @@ builder = "nixpacks"
 buildCommand = "echo 'Building the application...'"
 
 [deploy]
-startCommand = "python disable_aria2c.py && python telegram_downloader.py"
+startCommand = "python yt_dlp_custom_override.py && python disable_aria2c.py && python telegram_downloader.py"
 restartPolicyType = "always"
 
 [nixpacks]
