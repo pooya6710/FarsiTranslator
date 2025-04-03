@@ -315,6 +315,12 @@ async def download_with_quality(url: str, quality: str = 'best', is_audio: bool 
                 ydl_opts.update({
                     'format': format_spec,
                     'merge_output_format': 'mp4',  # ترکیب ویدیو و صدا در فرمت MP4
+                    'format_sort': ['res', 'ext:mp4:m4a'],
+                    'video_multistreams': True,
+                    'prefer_native_hls': True,
+                    'hls_prefer_native': True,
+                    'prefer_ffmpeg': True,
+                    'noplaylist': True
                 })
                 
                 # اضافه کردن تنظیمات FFmpeg در صورت وجود

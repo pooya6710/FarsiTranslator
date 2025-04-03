@@ -1395,7 +1395,11 @@ class YouTubeDownloader:
             title = clean_filename(title)
             
             # تنظیم خروجی بر اساس نوع فرمت
-            is_audio_only = 'audio' in format_option
+            # بررسی دقیق‌تر برای تشخیص درخواست‌های صوتی
+            # فقط زمانی صوتی در نظر گرفته می‌شود که دقیقاً 'audio' یا 'bestaudio' در کل format_option باشد
+            # این باعث می‌شود که کیفیت‌های ویدیویی که شامل کلمه audio هستند (مانند bestaudio) در بخش‌های دیگر، اشتباهاً صوتی تشخیص داده نشوند
+            is_audio_only = format_option == 'bestaudio' or format_option == 'audio'
+            logger.info(f"آیا درخواست فقط صوتی است؟ {is_audio_only} (format_option: {format_option})")
             output_ext = 'mp3' if is_audio_only else 'mp4'
             output_filename = f"{title}_{video_id}.{output_ext}"
             output_path = get_unique_filename(TEMP_DOWNLOAD_DIR, output_filename)
@@ -3191,24 +3195,29 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
                 format_option = "bestvideo[height=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=1080]+bestaudio/best[height=1080][ext=mp4]/best[height=1080]/best"
                 quality = "1080p"
                 quality_display = "کیفیت Full HD (1080p)"
+                is_audio_request = False  # تأکید بر اینکه درخواست ویدیویی است، نه صوتی
             elif option_num == 1:
                 format_option = "bestvideo[height=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=720]+bestaudio/best[height=720][ext=mp4]/best[height=720]/best"
                 quality = "720p"
                 quality_display = "کیفیت HD (720p)"
+                is_audio_request = False  # تأکید بر اینکه درخواست ویدیویی است، نه صوتی
             elif option_num == 2:
                 format_option = "bestvideo[height=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=480]+bestaudio/best[height=480][ext=mp4]/best[height=480]/best"
                 quality = "480p"
                 quality_display = "کیفیت متوسط (480p)"
+                is_audio_request = False  # تأکید بر اینکه درخواست ویدیویی است، نه صوتی
             elif option_num == 3:
                 format_option = "bestvideo[height=360][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=360]+bestaudio/best[height=360][ext=mp4]/best[height=360]/best"
                 quality = "360p"
                 quality_display = "کیفیت پایین (360p)"
+                is_audio_request = False  # تأکید بر اینکه درخواست ویدیویی است، نه صوتی
             elif option_num == 4:
                 format_option = "bestvideo[height=240][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=240]+bestaudio/best[height=240][ext=mp4]/best[height=240]/best"
                 quality = "240p"
                 quality_display = "کیفیت خیلی پایین (240p)"
+                is_audio_request = False  # تأکید بر اینکه درخواست ویدیویی است، نه صوتی
             elif option_num == 5:
-                format_option = "bestaudio"
+                format_option = "bestaudio/best"
                 is_audio_request = True
                 quality = "audio"
                 quality_display = "فقط صدا (MP3)"
@@ -3218,7 +3227,8 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         # تشخیص صوتی از روی محتوای option_id
         elif 'audio' in option_id.lower():
             is_audio_request = True
-            format_option = "bestaudio"
+            format_option = "bestaudio/best"
+            quality = "audio"
             quality_display = "فقط صدا (MP3)"
             logger.info(f"درخواست دانلود صوتی تشخیص داده شد: {option_id}")
         
