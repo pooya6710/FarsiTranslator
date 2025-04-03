@@ -3619,17 +3619,22 @@ def run_tests() -> bool:
 
 from flask import Flask
 
-app = Flask(__name__)
+flask_app = Flask(__name__)
 
-@app.route('/')
+@flask_app.route('/')
 def ping():
     return "Bot is alive!"
+
+def run_flask():
+    flask_app.run(host='0.0.0.0', port=8080)
 
 async def main():
     """راه‌اندازی ربات تلگرام و سرور فلسک"""
     # راه‌اندازی فلسک در یک ترد جداگانه
     from threading import Thread
-    Thread(target=lambda: app.run(host='0.0.0.0', port=8080)).start()
+    flask_thread = Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
     # بررسی وجود نمونه‌های دیگر ربات در حال اجرا
     lock_file = "/tmp/telegram_bot_lock"
     try:
