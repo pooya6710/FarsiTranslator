@@ -4,7 +4,3 @@ yt-dlp>=2023.11.16
 instaloader>=4.10.1
 requests>=2.31.0
 psycopg2-binary>=2.9.9
-flask>=3.0.0
-trafilatura
-instaloader
-instaloader==4.10.1
