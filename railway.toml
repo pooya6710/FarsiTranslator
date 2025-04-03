@@ -8,6 +8,3 @@ restartPolicyType = "always"
 
 [nixpacks]
 aptPackages = ["ffmpeg", "python3-dev"]
-
-# توجه: متغیرهای محیطی را باید در داشبورد Railway تنظیم کنید
-# TELEGRAM_BOT_TOKEN را در بخش Variables در داشبورد Railway اضافه کنید

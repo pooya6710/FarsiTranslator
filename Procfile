@@ -1,1 +1,1 @@
-web: python telegram_downloader.py
+worker: python telegram_downloader.py
