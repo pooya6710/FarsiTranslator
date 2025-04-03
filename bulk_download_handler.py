@@ -215,17 +215,6 @@ class BulkDownloadManager:
                     'throttledratelimit': 0,
                     'sleep_interval': 0,
                     'max_sleep_interval': 0,
-                    'external_downloader': 'aria2c',
-                    'external_downloader_args': [
-                        '-j', '16',
-                        '-x', '16',
-                        '-s', '16',
-                        '--min-split-size=1M',
-                        '--optimize-concurrent-downloads=true',
-                        '--http-accept-gzip=true',
-                        '--download-result=hide',
-                        '--quiet=true',
-                    ],
                 }
                 # استفاده از ThreadPoolExecutor پیشرفته با 8 ترد برای چند برابر کردن سرعت
                 with ThreadPoolExecutor(max_workers=8) as executor:

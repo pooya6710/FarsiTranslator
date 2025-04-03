@@ -1527,19 +1527,6 @@ class YouTubeDownloader:
                     'noplaylist': True,
                     'sleep_interval': 0,  # حذف تأخیر بین درخواست‌ها
                     'max_sleep_interval': 0,  # حذف حداکثر تأخیر
-                    'external_downloader': 'aria2c',  # استفاده از دانلودر پیشرفته aria2c
-                    'external_downloader_args': [
-                        # تنظیمات aria2c برای سرعت بالا
-                        '-j', '16',  # دانلود 16 قطعه موازی
-                        '-x', '16',  # استفاده از 16 اتصال برای هر سرور
-                        '-s', '16',  # تقسیم به 16 قطعه
-                        '--min-split-size=1M',  # حداقل اندازه تقسیم 1 مگابایت
-                        '--stream-piece-selector=inorder',  # انتخاب قطعات به ترتیب
-                        '--optimize-concurrent-downloads=true',  # بهینه‌سازی دانلودهای همزمان
-                        '--http-accept-gzip=true',  # پشتیبانی از فشرده‌سازی gzip
-                        '--download-result=hide',  # حذف نتیجه‌های اضافی
-                        '--quiet=true',  # حالت بی‌صدا
-                    ],
                     'postprocessor_args': [
                         # تنظیمات فوق‌سریع انکودر
                         '-c:v', 'libx264',
