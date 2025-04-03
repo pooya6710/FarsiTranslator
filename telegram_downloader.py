@@ -2039,6 +2039,8 @@ async def handle_download_option(update: Update, context: ContextTypes.DEFAULT_T
                     logger.info(f"کیفیت بر اساس شماره گزینه اصلاح شد: {selected_option['quality']}")
                 
                 # هدایت به تابع دانلود مناسب با اطلاعات کامل گزینه
+                from download_functions import download_instagram_with_option, download_youtube_with_option
+                
                 if download_type == "ig":
                     await download_instagram_with_option(update, context, url, selected_option)
                 elif download_type == "yt":
@@ -2049,6 +2051,8 @@ async def handle_download_option(update: Update, context: ContextTypes.DEFAULT_T
         
         # اگر کش وجود نداشت، از روش قدیمی استفاده کن
         # هدایت به تابع دانلود مناسب
+        from download_functions import download_instagram, download_youtube
+        
         if download_type == "ig":
             await download_instagram(update, context, url, option_id)
         elif download_type == "yt":

@@ -595,12 +595,7 @@ async def get_download_options(url: str) -> List[Dict]:
     # گزینه‌های دانلود
     options = []
     
-    # افزودن گزینه بهترین کیفیت
-    options.append({
-        'quality': 'best',
-        'display_name': 'بهترین کیفیت',
-        'priority': 1
-    })
+    # گزینه بهترین کیفیت حذف شده به درخواست کاربر
     
     # افزودن گزینه‌های براساس کیفیت‌های استاندارد
     standard_qualities = [
@@ -626,7 +621,7 @@ async def get_download_options(url: str) -> List[Dict]:
             options.append({
                 'quality': quality,
                 'display_name': display_name,
-                'priority': i + 2
+                'priority': i + 1  # اصلاح شماره‌گذاری بعد از حذف گزینه best
             })
     
     # افزودن گزینه فقط صدا
