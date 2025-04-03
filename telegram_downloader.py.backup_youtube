@@ -23,9 +23,6 @@
 
 import os
 import re
-
-# ماژول دانلود یوتیوب
-from youtube_integration import YoutubeHandler
 import uuid
 import time
 import asyncio
@@ -1046,74 +1043,51 @@ class InstagramDownloader:
             logger.error(f"خطا در دانلود با درخواست مستقیم: {str(e)}")
             return None
             
-    
     async def get_download_options(self, url: str) -> List[Dict]:
         """
-        دریافت گزینه‌های دانلود برای ویدیوی یوتیوب (نسخه بهبود یافته)
+        دریافت گزینه‌های دانلود برای ویدیوی اینستاگرام
         
         Args:
-            url: آدرس ویدیوی یوتیوب
+            url: آدرس پست اینستاگرام
             
         Returns:
-            لیستی از گزینه‌های دانلود با ساختار استاندارد
+            لیستی از گزینه‌های دانلود
         """
         try:
-            # استفاده از YoutubeHandler برای دریافت گزینه‌ها
-            options = await self.yt_handler.get_download_options(url)
-            logger.info(f"تعداد گزینه‌های دانلود ایجاد شده: {len(options)}")
+            # استخراج کد کوتاه پست
+            shortcode = self.extract_post_shortcode(url)
+            if not shortcode:
+                logger.error(f"خطا در استخراج کد کوتاه پست از URL: {url}")
+                return []
+                
+            # گزینه‌های دانلود ثابت برای اینستاگرام - 5 کیفیت ویدیویی و یک گزینه صوتی
+            options = [
+                {"id": "instagram_1080p", "label": "کیفیت Full HD (1080p)", "quality": "1080p", "type": "video", "display_name": "کیفیت Full HD (1080p)"},
+                {"id": "instagram_720p", "label": "کیفیت HD (720p)", "quality": "720p", "type": "video", "display_name": "کیفیت HD (720p)"},
+                {"id": "instagram_480p", "label": "کیفیت متوسط (480p)", "quality": "480p", "type": "video", "display_name": "کیفیت متوسط (480p)"},
+                {"id": "instagram_360p", "label": "کیفیت پایین (360p)", "quality": "360p", "type": "video", "display_name": "کیفیت پایین (360p)"},
+                {"id": "instagram_240p", "label": "کیفیت خیلی پایین (240p)", "quality": "240p", "type": "video", "display_name": "کیفیت خیلی پایین (240p)"},
+                {"id": "instagram_audio", "label": "فقط صدا (MP3)", "quality": "audio", "type": "audio", "display_name": "فقط صدا (MP3)"}
+            ]
+            
+            # لاگ کیفیت‌های ارائه شده
+            logger.info(f"گزینه‌های دانلود اینستاگرام ایجاد شد: {len(options)} گزینه")
+            
             return options
             
         except Exception as e:
-            logger.error(f"خطا در دریافت گزینه‌های دانلود یوتیوب: {str(e)}")
-            logger.error(f"جزئیات خطا: {traceback.format_exc()}")
-            
-            # در صورت خطا، گزینه‌های پیش‌فرض را برمی‌گردانیم
-            return [
-                {
-                    'quality': 'best',
-                    'display_name': 'بهترین کیفیت',
-                    'priority': 1
-                },
-                {
-                    'quality': '1080p',
-                    'display_name': 'کیفیت Full HD (1080p)',
-                    'priority': 2
-                },
-                {
-                    'quality': '720p',
-                    'display_name': 'کیفیت HD (720p)',
-                    'priority': 3
-                },
-                {
-                    'quality': '480p',
-                    'display_name': 'کیفیت متوسط (480p)',
-                    'priority': 4
-                },
-                {
-                    'quality': '360p',
-                    'display_name': 'کیفیت پایین (360p)',
-                    'priority': 5
-                },
-                {
-                    'quality': '240p',
-                    'display_name': 'کیفیت خیلی پایین (240p)',
-                    'priority': 6
-                },
-                {
-                    'quality': 'audio',
-                    'display_name': 'فقط صدا (MP3)',
-                    'type': 'audio',
-                    'priority': 7
-                }
-            ]
-            
+            logger.error(f"خطا در دریافت گزینه‌های دانلود اینستاگرام: {str(e)}")
+            return []
+
+"""
+بخش 4: توابع مربوط به یوتیوب (از ماژول youtube_downloader.py)
+"""
+
 class YouTubeDownloader:
     """کلاس مسئول دانلود ویدیوهای یوتیوب"""
     
     def __init__(self):
         """مقداردهی اولیه دانلودر یوتیوب"""
-        # استفاده از ماژول youtube_integration
-        self.yt_handler = YoutubeHandler(download_dir=TEMP_DOWNLOAD_DIR)
         # تنظیمات پایه برای yt-dlp
         self.ydl_opts = {
             'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
@@ -1201,7 +1175,6 @@ class YouTubeDownloader:
             logger.error(f"خطا در دریافت اطلاعات ویدیوی یوتیوب: {str(e)}")
             return None
             
-    
     async def get_download_options(self, url: str) -> List[Dict]:
         """
         دریافت گزینه‌های دانلود برای ویدیوی یوتیوب (نسخه بهبود یافته)
@@ -1213,54 +1186,180 @@ class YouTubeDownloader:
             لیستی از گزینه‌های دانلود با ساختار استاندارد
         """
         try:
-            # استفاده از YoutubeHandler برای دریافت گزینه‌ها
-            options = await self.yt_handler.get_download_options(url)
+            # دریافت اطلاعات ویدیو
+            info = await self.get_video_info(url)
+            if not info:
+                logger.error(f"اطلاعات ویدیو دریافت نشد: {url}")
+                return []
+            
+            # استخراج اطلاعات پایه
+            title = info.get('title', 'ویدیو')
+            duration = info.get('duration', 0)
+            is_short = is_youtube_shorts(url) or (duration and duration < 60)
+            
+            logger.info(f"دریافت گزینه‌های دانلود برای: {title} - مدت: {duration} ثانیه")
+            
+            options = []
+            
+            # بررسی آیا این یک پلی‌لیست است
+            if is_youtube_playlist(url):
+                options = [
+                    {
+                        "id": "youtube_playlist_hd", 
+                        "label": "دانلود 3 ویدیوی اول پلی‌لیست (720p)", 
+                        "quality": "720p", 
+                        "format": "best[height<=720]",
+                        "display_name": "پلی‌لیست - کیفیت HD",
+                        "type": "playlist",
+                        "priority": 1
+                    },
+                    {
+                        "id": "youtube_playlist_sd", 
+                        "label": "دانلود 3 ویدیوی اول پلی‌لیست (480p)", 
+                        "quality": "480p", 
+                        "format": "best[height<=480]",
+                        "display_name": "پلی‌لیست - کیفیت متوسط",
+                        "type": "playlist",
+                        "priority": 2
+                    },
+                    {
+                        "id": "youtube_playlist_audio", 
+                        "label": "دانلود صدای 3 ویدیوی اول پلی‌لیست", 
+                        "quality": "audio", 
+                        "format": "bestaudio[ext=m4a]",
+                        "display_name": "پلی‌لیست - فقط صدا",
+                        "type": "audio",
+                        "priority": 3
+                    }
+                ]
+            else:
+                # اگر ویدیو کوتاه است (شورتز)، همان 5 کیفیت را ارائه می‌دهیم
+                if is_short:
+                    options = [
+                        {
+                            "id": "youtube_1080p", 
+                            "label": "کیفیت Full HD (1080p)", 
+                            "quality": "1080p", 
+                            "format": "best[height<=1080]",
+                            "display_name": "کیفیت Full HD (1080p)",
+                            "type": "video",
+                            "priority": 1
+                        },
+                        {
+                            "id": "youtube_720p", 
+                            "label": "کیفیت HD (720p)", 
+                            "quality": "720p", 
+                            "format": "best[height<=720]",
+                            "display_name": "کیفیت HD (720p)",
+                            "type": "video",
+                            "priority": 2
+                        },
+                        {
+                            "id": "youtube_480p", 
+                            "label": "کیفیت متوسط (480p)", 
+                            "quality": "480p", 
+                            "format": "best[height<=480]",
+                            "display_name": "کیفیت متوسط (480p)",
+                            "type": "video",
+                            "priority": 3
+                        },
+                        {
+                            "id": "youtube_360p", 
+                            "label": "کیفیت پایین (360p)", 
+                            "quality": "360p", 
+                            "format": "best[height<=360]",
+                            "display_name": "کیفیت پایین (360p)",
+                            "type": "video",
+                            "priority": 4
+                        },
+                        {
+                            "id": "youtube_240p", 
+                            "label": "کیفیت خیلی پایین (240p)", 
+                            "quality": "240p", 
+                            "format": "best[height<=240]",
+                            "display_name": "کیفیت خیلی پایین (240p)",
+                            "type": "video",
+                            "priority": 5
+                        },
+                        {
+                            "id": "youtube_audio", 
+                            "label": "فقط صدا (MP3)", 
+                            "quality": "audio", 
+                            "format": "bestaudio[ext=m4a]",
+                            "display_name": "فقط صدا (MP3)",
+                            "type": "audio",
+                            "priority": 6
+                        }
+                    ]
+                else:
+                    # برای ویدیوهای معمولی، تمام گزینه‌های کیفیت
+                    options = [
+                        {
+                            "id": "youtube_1080p", 
+                            "label": "کیفیت Full HD (1080p)", 
+                            "quality": "1080p", 
+                            "format": "best[height<=1080]",
+                            "display_name": "کیفیت Full HD (1080p)",
+                            "type": "video",
+                            "priority": 1
+                        },
+                        {
+                            "id": "youtube_720p", 
+                            "label": "کیفیت HD (720p)", 
+                            "quality": "720p", 
+                            "format": "best[height<=720]",
+                            "display_name": "کیفیت HD (720p)",
+                            "type": "video",
+                            "priority": 2
+                        },
+                        {
+                            "id": "youtube_480p", 
+                            "label": "کیفیت متوسط (480p)", 
+                            "quality": "480p", 
+                            "format": "best[height<=480]",
+                            "display_name": "کیفیت متوسط (480p)",
+                            "type": "video",
+                            "priority": 3
+                        },
+                        {
+                            "id": "youtube_360p", 
+                            "label": "کیفیت پایین (360p)", 
+                            "quality": "360p", 
+                            "format": "best[height<=360]",
+                            "display_name": "کیفیت پایین (360p)",
+                            "type": "video",
+                            "priority": 4
+                        },
+                        {
+                            "id": "youtube_240p", 
+                            "label": "کیفیت خیلی پایین (240p)", 
+                            "quality": "240p", 
+                            "format": "best[height<=240]",
+                            "display_name": "کیفیت خیلی پایین (240p)",
+                            "type": "video",
+                            "priority": 5
+                        },
+                        {
+                            "id": "youtube_audio", 
+                            "label": "فقط صدا (MP3)", 
+                            "quality": "audio", 
+                            "format": "bestaudio[ext=m4a]",
+                            "display_name": "فقط صدا (MP3)",
+                            "type": "audio",
+                            "priority": 6
+                        }
+                    ]
+
+            # مرتب‌سازی گزینه‌ها براساس اولویت
+            options = sorted(options, key=lambda x: x.get('priority', 99))
+            
             logger.info(f"تعداد گزینه‌های دانلود ایجاد شده: {len(options)}")
             return options
             
         except Exception as e:
             logger.error(f"خطا در دریافت گزینه‌های دانلود یوتیوب: {str(e)}")
             logger.error(f"جزئیات خطا: {traceback.format_exc()}")
-            
-            # در صورت خطا، گزینه‌های پیش‌فرض را برمی‌گردانیم
-            return [
-                {
-                    'quality': 'best',
-                    'display_name': 'بهترین کیفیت',
-                    'priority': 1
-                },
-                {
-                    'quality': '1080p',
-                    'display_name': 'کیفیت Full HD (1080p)',
-                    'priority': 2
-                },
-                {
-                    'quality': '720p',
-                    'display_name': 'کیفیت HD (720p)',
-                    'priority': 3
-                },
-                {
-                    'quality': '480p',
-                    'display_name': 'کیفیت متوسط (480p)',
-                    'priority': 4
-                },
-                {
-                    'quality': '360p',
-                    'display_name': 'کیفیت پایین (360p)',
-                    'priority': 5
-                },
-                {
-                    'quality': '240p',
-                    'display_name': 'کیفیت خیلی پایین (240p)',
-                    'priority': 6
-                },
-                {
-                    'quality': 'audio',
-                    'display_name': 'فقط صدا (MP3)',
-                    'type': 'audio',
-                    'priority': 7
-                }
-            ]
+            return []
             
     async def download_video(self, url: str, format_option: str) -> Optional[str]:
         """
@@ -1278,52 +1377,256 @@ class YouTubeDownloader:
             cache_key = f"{url}_{format_option}"
             cached_file = get_from_cache(cache_key)
             if cached_file:
-                logger.info(f"فایل از کش برگردانده شد: {cached_file}")
                 return cached_file
                 
             # پاکسازی URL
             clean_url = self.clean_youtube_url(url)
             
-            # بررسی نوع درخواست (صوتی یا ویدیویی)
-            is_audio_request = 'audio' in format_option.lower() or format_option.lower() == 'bestaudio'
+            # دریافت اطلاعات ویدیو
+            info = await self.get_video_info(clean_url)
+            if not info:
+                return None
+                
+            # ایجاد نام فایل خروجی
+            video_id = info.get('id', 'video')
+            title = info.get('title', 'youtube_video').replace('/', '_')
             
-            if is_audio_request:
-                # دانلود صدا
-                logger.info(f"درخواست دانلود صدا: {clean_url}")
-                downloaded_file = await self.yt_handler.download_audio(clean_url)
+            # پاکسازی نام فایل
+            title = clean_filename(title)
+            
+            # تنظیم خروجی بر اساس نوع فرمت
+            is_audio_only = 'audio' in format_option
+            output_ext = 'mp3' if is_audio_only else 'mp4'
+            output_filename = f"{title}_{video_id}.{output_ext}"
+            output_path = get_unique_filename(TEMP_DOWNLOAD_DIR, output_filename)
+            
+            # تنظیمات دانلود
+            ydl_opts = self.ydl_opts.copy()
+            
+            if is_audio_only:
+                try:
+                    # روش اول: استفاده از yt-dlp برای دانلود مستقیم صدا
+                    ydl_opts.update({
+                        'format': 'bestaudio[ext=m4a]/bestaudio/best',
+                        'postprocessors': [{
+                            'key': 'FFmpegExtractAudio',
+                            'preferredcodec': 'mp3',
+                            'preferredquality': '192',
+                        }],
+                        'outtmpl': output_path.replace('.mp3', '.%(ext)s'),
+                    })
+                    
+                    # دانلود با yt-dlp - بدون استفاده از loop
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        try:
+                            # روش مستقیم
+                            ydl.download([clean_url])
+                        except Exception as e1:
+                            logger.error(f"خطا در دانلود صوتی با روش اول: {e1}")
+                            # روش با ترد جدا
+                            try:
+                                import threading
+                                download_thread = threading.Thread(target=ydl.download, args=([clean_url],))
+                                download_thread.start()
+                                download_thread.join(timeout=30) # انتظار حداکثر 30 ثانیه
+                            except Exception as e2:
+                                logger.error(f"خطا در دانلود صوتی با روش دوم: {e2}")
+                        
+                    # اگر فایل ایجاد نشد، از روش دوم استفاده می‌کنیم
+                    if not os.path.exists(output_path):
+                        # روش دوم: دانلود ویدیو و استخراج صدا
+                        video_ydl_opts = self.ydl_opts.copy()
+                        video_ydl_opts.update({
+                            'format': 'best[ext=mp4]/best',
+                            'outtmpl': output_path.replace('.mp3', '_temp.mp4')
+                        })
+                        
+                        with yt_dlp.YoutubeDL(video_ydl_opts) as ydl:
+                            try:
+                                # روش مستقیم
+                                ydl.download([clean_url])
+                            except Exception as e1:
+                                logger.error(f"خطا در دانلود ویدیو با روش اول: {e1}")
+                                # روش با ترد جداگانه
+                                try:
+                                    import threading
+                                    download_thread = threading.Thread(target=ydl.download, args=([clean_url],))
+                                    download_thread.start()
+                                    download_thread.join(timeout=30)  # انتظار حداکثر 30 ثانیه
+                                except Exception as e2:
+                                    logger.error(f"خطا در دانلود ویدیو با روش دوم: {e2}")
+                            
+                        # استخراج صدا از ویدیو
+                        video_path = output_path.replace('.mp3', '_temp.mp4')
+                        if os.path.exists(video_path):
+                            try:
+                                from audio_processing import extract_audio
+                                audio_path = extract_audio(video_path, 'mp3', '192k')
+                                if audio_path:
+                                    shutil.move(audio_path, output_path)
+                                    os.remove(video_path)
+                            except ImportError:
+                                logger.warning("ماژول audio_processing یافت نشد")
+                                try:
+                                    from telegram_fixes import extract_audio_from_video
+                                    audio_path = extract_audio_from_video(video_path, 'mp3', '192k')
+                                    if audio_path:
+                                        shutil.move(audio_path, output_path)
+                                        os.remove(video_path)
+                                except ImportError:
+                                    logger.warning("ماژول telegram_fixes نیز یافت نشد")
+                                    
+                except Exception as e:
+                    logger.error(f"خطا در استخراج صدا: {str(e)}")
+                    return None
             else:
-                # تبدیل format_option به کیفیت استاندارد
-                quality = self._map_format_to_quality(format_option)
-                logger.info(f"درخواست دانلود ویدیو با کیفیت {quality}: {clean_url}")
-                downloaded_file = await self.yt_handler.download_video(clean_url, quality)
-            
-            # افزودن به کش
-            if downloaded_file and os.path.exists(downloaded_file):
-                add_to_cache(cache_key, downloaded_file)
-                logger.info(f"فایل به کش اضافه شد: {downloaded_file}")
-            
-            return downloaded_file
+                # انتخاب فرمت بر اساس گزینه کاربر با تضمین دریافت ویدیو
+                if '1080p' in format_option:
+                    format_spec = 'bestvideo[height=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080][ext=mp4]+bestaudio/best[height<=1080][ext=mp4]/best'
+                    quality = '1080p'
+                elif '720p' in format_option:
+                    format_spec = 'bestvideo[height=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720][ext=mp4]+bestaudio/best[height<=720][ext=mp4]/best'
+                    quality = '720p'
+                elif '480p' in format_option:
+                    format_spec = 'bestvideo[height=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480][ext=mp4]+bestaudio/best[height<=480][ext=mp4]/best'
+                    quality = '480p'
+                elif '360p' in format_option:
+                    format_spec = 'bestvideo[height=360][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=360][ext=mp4]+bestaudio/best[height<=360][ext=mp4]/best'
+                    quality = '360p'
+                elif '240p' in format_option:
+                    format_spec = 'bestvideo[height=240][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=240][ext=mp4]+bestaudio/best[height<=240][ext=mp4]/best'
+                    quality = '240p'
+                else:
+                    format_spec = 'bestvideo+bestaudio/best[ext=mp4]/best'
+                    quality = 'best'
+                    
+                logger.info(f"استفاده از فرمت {format_spec} برای دانلود یوتیوب با کیفیت {quality}")
+                    
+                # تنظیمات بیشتر برای بهبود کیفیت دانلود
+                ydl_opts.update({
+                    'format': format_spec,
+                    'outtmpl': output_path,
+                    'merge_output_format': 'mp4',  # ترکیب ویدیو و صدا در فرمت MP4
+                    'postprocessor_args': [
+                        # تنظیمات انکودر برای کنترل کیفیت
+                        '-c:v', 'libx264',  # انکودر ویدیو
+                        '-c:a', 'aac',  # انکودر صدا
+                        '-b:a', '128k',  # بیت‌ریت صدا
+                        '-preset', 'fast',  # سرعت انکود (کیفیت متوسط، سرعت بیشتر)
+                    ],
+                })
+                
+            # بررسی پلی‌لیست
+            if is_youtube_playlist(clean_url):
+                ydl_opts.update({
+                    'noplaylist': False,
+                    'playlist_items': '1-3',  # دانلود حداکثر 3 ویدیوی اول
+                })
+                
+                # اگر پلی‌لیست باشد، مسیر خروجی را تغییر می‌دهیم
+                playlist_id = re.search(r'list=([A-Za-z0-9_-]+)', clean_url).group(1)
+                playlist_dir = os.path.join(TEMP_DOWNLOAD_DIR, f'playlist_{playlist_id}_{uuid.uuid4().hex[:8]}')
+                os.makedirs(playlist_dir, exist_ok=True)
+                
+                ydl_opts['outtmpl'] = os.path.join(playlist_dir, '%(playlist_index)s-%(title)s.%(ext)s')
+                
+                # دانلود ویدیوها
+                loop = asyncio.get_event_loop()
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    await loop.run_in_executor(None, ydl.download, [clean_url])
+                    
+                # ایجاد فایل zip از ویدیوهای دانلود شده
+                zip_filename = f"playlist_{playlist_id}.zip"
+                zip_path = get_unique_filename(TEMP_DOWNLOAD_DIR, zip_filename)
+                
+                # لیست فایل‌های دانلود شده
+                downloaded_files = [os.path.join(playlist_dir, f) for f in os.listdir(playlist_dir) 
+                                  if os.path.isfile(os.path.join(playlist_dir, f))]
+                
+                # لاگ تعداد فایل‌های دانلود شده
+                logger.info(f"تعداد {len(downloaded_files)} فایل از پلی‌لیست دانلود شد.")
+                
+                if not downloaded_files:
+                    logger.error(f"هیچ فایلی از پلی‌لیست دانلود نشد: {clean_url}")
+                    return None
+                    
+                # ایجاد فایل zip
+                import zipfile
+                with zipfile.ZipFile(zip_path, 'w') as zipf:
+                    for file in downloaded_files:
+                        zipf.write(file, os.path.basename(file))
+                        
+                # پاکسازی دایرکتوری موقت
+                shutil.rmtree(playlist_dir, ignore_errors=True)
+                
+                # افزودن به کش
+                add_to_cache(cache_key, zip_path)
+                
+                return zip_path
+                
+            else:
+                # دانلود ویدیو - بدون استفاده از loop
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    try:
+                        # روش مستقیم
+                        ydl.download([clean_url])
+                    except Exception as e1:
+                        logger.error(f"خطا در دانلود ویدیو با روش اول: {e1}")
+                        # روش با ترد جداگانه
+                        try:
+                            import threading
+                            download_thread = threading.Thread(target=ydl.download, args=([clean_url],))
+                            download_thread.start()
+                            download_thread.join(timeout=30)  # انتظار حداکثر 30 ثانیه
+                        except Exception as e2:
+                            logger.error(f"خطا در دانلود ویدیو با روش دوم: {e2}")
+                    
+                # بررسی وجود فایل خروجی
+                if is_audio_only:
+                    # برای فایل‌های صوتی، پسوند فایل ممکن است تغییر کرده باشد
+                    mp3_path = output_path
+                    if not os.path.exists(mp3_path):
+                        base_path = output_path.replace('.mp3', '')
+                        possible_exts = ['.mp3', '.m4a', '.webm', '.opus']
+                        for ext in possible_exts:
+                            if os.path.exists(base_path + ext):
+                                # تغییر نام فایل به فرمت نهایی
+                                os.rename(base_path + ext, mp3_path)
+                                break
+                
+                # بررسی وجود فایل نهایی
+                if not os.path.exists(output_path):
+                    logger.error(f"فایل خروجی ایجاد نشد: {output_path}")
+                    return None
+                    
+                # بررسی اگر نیاز به تغییر کیفیت ویدیو است
+                if not is_audio_only and quality != "best" and quality in ["240p", "360p", "480p", "720p", "1080p"]:
+                    try:
+                        logger.info(f"تبدیل کیفیت ویدیو به {quality}...")
+                        from telegram_fixes import convert_video_quality
+                        converted_path = convert_video_quality(output_path, quality, is_audio_request=False)
+                        if converted_path and os.path.exists(converted_path):
+                            logger.info(f"تبدیل کیفیت موفق: {converted_path}")
+                            output_path = converted_path
+                        else:
+                            logger.warning(f"تبدیل کیفیت ناموفق بود، استفاده از فایل اصلی")
+                    except ImportError:
+                        logger.warning("ماژول telegram_fixes یافت نشد، تبدیل کیفیت انجام نشد")
+                    except Exception as e:
+                        logger.error(f"خطا در تبدیل کیفیت ویدیو: {str(e)}")
+                
+                # افزودن به کش
+                add_to_cache(cache_key, output_path)
+                
+                return output_path
                 
         except Exception as e:
             logger.error(f"خطا در دانلود ویدیوی یوتیوب: {str(e)}")
-            import traceback
-            logger.error(f"جزئیات خطا: {traceback.format_exc()}")
             return None
-            
-    def _map_format_to_quality(self, format_option: str) -> str:
-        """تبدیل format_option به کیفیت استاندارد"""
-        if "1080" in format_option:
-            return "1080p"
-        elif "720" in format_option:
-            return "720p"
-        elif "480" in format_option:
-            return "480p"
-        elif "360" in format_option:
-            return "360p"
-        elif "240" in format_option:
-            return "240p"
-        else:
-            return "best"
+
+"""
+بخش 5: هندلرهای ربات تلگرام (از ماژول telegram_bot.py)
+"""
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -2118,7 +2421,790 @@ async def download_instagram(update: Update, context: ContextTypes.DEFAULT_TYPE,
                 quality = "360p"
                 display_name = "کیفیت پایین (360p)"
             elif option_num == 4:
-                format_option = "240p"  # استفاده از فرمت ساده‌شده برای YoutubeHandler
+                quality = "240p"
+                display_name = "کیفیت خیلی پایین (240p)"
+            elif option_num == 5:
+                quality = "audio"
+                is_audio = True
+                display_name = "فقط صدا (MP3)"
+            logger.info(f"درخواست کیفیت براساس شماره گزینه {option_num}: {quality}")
+            
+        # نسخه قدیمی - تشخیص بر اساس نام کیفیت در option_id
+        elif "1080p" in option_id:
+            quality = "1080p"
+            is_audio = False  # تأکید بر درخواست ویدیویی
+            display_name = "کیفیت Full HD (1080p)"
+        elif "720p" in option_id:
+            quality = "720p"
+            is_audio = False  # تأکید بر درخواست ویدیویی
+            display_name = "کیفیت HD (720p)"
+        elif "480p" in option_id:
+            quality = "480p"
+            is_audio = False  # تأکید بر درخواست ویدیویی
+            display_name = "کیفیت متوسط (480p)"
+            logger.info(f"کیفیت 480p انتخاب شد: {option_id}")
+        elif "360p" in option_id:
+            quality = "360p"
+            is_audio = False  # تأکید بر درخواست ویدیویی
+            display_name = "کیفیت پایین (360p)"
+            logger.info(f"کیفیت 360p انتخاب شد: {option_id}")
+        elif "240p" in option_id:
+            quality = "240p"
+            is_audio = False  # تأکید بر درخواست ویدیویی
+            display_name = "کیفیت خیلی پایین (240p)"
+        elif "medium" in option_id:
+            quality = "480p"  # استفاده از فرمت جدید برای کیفیت متوسط
+            display_name = "کیفیت متوسط (480p)"
+        elif "low" in option_id:
+            quality = "240p"  # استفاده از فرمت جدید برای کیفیت پایین
+            display_name = "کیفیت خیلی پایین (240p)"
+# این بخش حذف شده است زیرا بالاتر شرط option_id.isdigit وجود دارد و باعث تکرار می‌شود
+            
+        logger.info(f"دانلود اینستاگرام با کیفیت: {quality}, صوتی: {is_audio}")
+        
+        # 1. دانلود ویدیو با بهترین کیفیت
+        best_quality_file = None
+        
+        # بررسی کش برای بهترین کیفیت
+        cached_best = get_from_cache(f"{url}_best")
+        if cached_best and os.path.exists(cached_best):
+            logger.info(f"فایل با بهترین کیفیت از کش برگردانده شد: {cached_best}")
+            best_quality_file = cached_best
+        else:
+            # دانلود با بهترین کیفیت
+            best_quality_file = await downloader.download_post(url, "best")
+            if best_quality_file and os.path.exists(best_quality_file):
+                # افزودن به کش بهترین کیفیت
+                add_to_cache(f"{url}_best", best_quality_file)
+                logger.info(f"فایل با بهترین کیفیت دانلود شد: {best_quality_file}")
+        
+        if not best_quality_file or not os.path.exists(best_quality_file):
+            await query.edit_message_text(ERROR_MESSAGES["download_failed"])
+            return
+        
+        # 2. اگر کیفیت انتخابی "best" است، همان فایل را برگردان
+        downloaded_file = best_quality_file
+        
+        # 3. تبدیل کیفیت برای سایر موارد
+        if quality != "best" or is_audio:
+            # پیام در حال پردازش
+            await query.edit_message_text(STATUS_MESSAGES["processing"])
+            
+            try:
+                # بررسی کش برای کیفیت درخواستی
+                cached_quality = get_from_cache(f"{url}_{quality}")
+                if cached_quality and os.path.exists(cached_quality):
+                    logger.info(f"فایل با کیفیت {quality} از کش برگردانده شد: {cached_quality}")
+                    downloaded_file = cached_quality
+                else:
+                    # اجرای تبدیل کیفیت
+                    try:
+                        from telegram_fixes import convert_video_quality
+                        logger.info(f"تبدیل کیفیت ویدیو به {quality}, صوتی: {is_audio}")
+                        
+                        # انجام تبدیل
+                        converted_file = convert_video_quality(
+                            video_path=best_quality_file, 
+                            quality=quality,
+                            is_audio_request=is_audio
+                        )
+                        
+                        if converted_file and os.path.exists(converted_file):
+                            downloaded_file = converted_file
+                            logger.info(f"تبدیل موفق: {downloaded_file}")
+                            # افزودن به کش
+                            add_to_cache(f"{url}_{quality}", downloaded_file)
+                        else:
+                            logger.warning("تبدیل ناموفق بود، استفاده از فایل اصلی")
+                    except ImportError as ie:
+                        logger.error(f"ماژول telegram_fixes یافت نشد: {str(ie)}")
+                        # تلاش برای استفاده از روش دیگر
+                        if is_audio and os.path.exists(best_quality_file):
+                            try:
+                                logger.info("تلاش برای استخراج صوت با ماژول audio_processing")
+                                from audio_processing import extract_audio
+                                audio_path = extract_audio(best_quality_file)
+                                if audio_path and os.path.exists(audio_path):
+                                    downloaded_file = audio_path
+                                    logger.info(f"استخراج صدا با audio_processing موفق: {audio_path}")
+                                    # افزودن به کش
+                                    add_to_cache(f"{url}_audio", audio_path)
+                                else:
+                                    logger.warning("استخراج صدا ناموفق بود، استفاده از فایل اصلی")
+                            except ImportError:
+                                logger.error("ماژول audio_processing در دسترس نیست")
+                    except Exception as e:
+                        logger.error(f"خطا در تبدیل کیفیت: {str(e)}")
+            except Exception as e:
+                logger.error(f"خطا در مرحله پردازش: {str(e)}")
+                # در صورت خطا از فایل اصلی استفاده می‌کنیم
+            
+        if not downloaded_file or not os.path.exists(downloaded_file):
+            await query.edit_message_text(ERROR_MESSAGES["download_failed"])
+            return
+            
+        # بررسی حجم فایل
+        file_size = os.path.getsize(downloaded_file)
+        if file_size > MAX_TELEGRAM_FILE_SIZE:
+            await query.edit_message_text(ERROR_MESSAGES["file_too_large"])
+            return
+            
+        # ارسال پیام در حال آپلود
+        await query.edit_message_text(STATUS_MESSAGES["uploading"])
+        
+        # احترام به انتخاب کاربر برای نوع فایل (صوتی یا ویدیویی)
+        # اینجا تصمیم فقط بر اساس انتخاب کاربر است، نه پسوند فایل
+        # اگر کاربر گزینه صوتی انتخاب نکرده باشد، حتی اگر فایل با پسوند صوتی باشد، 
+        # به عنوان ویدیو در نظر گرفته می‌شود (ممکن است کیفیت با عنوان "فقط صدا" انتخاب شده باشد)
+        
+        # ارسال فایل بر اساس نوع آن
+        if is_audio:
+            try:
+                with open(downloaded_file, 'rb') as audio_file:
+                    caption = f"🎵 صدای دانلود شده از اینستاگرام\n💾 حجم: {human_readable_size(file_size)}"
+                    await context.bot.send_audio(
+                        chat_id=update.effective_chat.id,
+                        audio=audio_file,
+                        caption=caption
+                    )
+            except Exception as audio_error:
+                logger.error(f"خطا در ارسال فایل صوتی: {str(audio_error)}")
+                # اگر ارسال به عنوان صوت خطا داد، به عنوان سند ارسال کن
+                with open(downloaded_file, 'rb') as document_file:
+                    caption = f"🎵 صدای دانلود شده از اینستاگرام\n💾 حجم: {human_readable_size(file_size)}"
+                    await context.bot.send_document(
+                        chat_id=update.effective_chat.id,
+                        document=document_file,
+                        caption=caption
+                    )
+        else:
+            # ارسال ویدیو
+            with open(downloaded_file, 'rb') as video_file:
+                caption = f"📥 دانلود شده از اینستاگرام\n💾 حجم: {human_readable_size(file_size)}\n🎬 کیفیت: {quality}"
+                await context.bot.send_video(
+                    chat_id=update.effective_chat.id,
+                    video=video_file,
+                    caption=caption,
+                    supports_streaming=True
+                )
+            
+        # ارسال پیام تکمیل
+        await query.edit_message_text(STATUS_MESSAGES["complete"])
+        
+    except Exception as e:
+        logger.error(f"خطا در دانلود ویدیوی اینستاگرام: {str(e)}")
+        logger.error(f"جزئیات خطا: {traceback.format_exc()}")
+        await query.edit_message_text(ERROR_MESSAGES["download_failed"])
+
+async def download_instagram_with_option(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, selected_option: Dict) -> None:
+    """
+    دانلود ویدیوی اینستاگرام با استفاده از اطلاعات کامل گزینه
+    
+    Args:
+        update: آبجکت آپدیت تلگرام
+        context: کانتکست تلگرام
+        url: آدرس اینستاگرام
+        selected_option: گزینه انتخاب شده از کش
+    """
+    query = update.callback_query
+    
+    try:
+        logger.info(f"شروع دانلود اینستاگرام با گزینه کامل: {selected_option.get('quality', 'نامشخص')}")
+        
+        # بررسی نوع گزینه (صدا یا ویدیو) با دقت بالا
+        option_id = selected_option.get('id', '')
+        option_type = selected_option.get('type', '')
+        is_audio = option_type == 'audio' or 'audio' in option_id.lower()
+        
+        # دقت بیشتر برای تشخیص درخواست‌های ویدیویی
+        if '240p' in option_id or '360p' in option_id or '480p' in option_id or '720p' in option_id or '1080p' in option_id:
+            is_audio = False
+            logger.info(f"درخواست ویدیویی تشخیص داده شد: {option_id}")
+            
+        logger.info(f"نوع گزینه انتخاب شده: {option_type}, شناسه: {option_id}, تشخیص صوتی: {is_audio}")
+        
+        # ایجاد دانلودر اینستاگرام
+        downloader = InstagramDownloader()
+        
+        # دانلود محتوا
+        downloaded_file = None
+
+        # بررسی اگر ماژول بهبودهای جدید در دسترس است
+        try:
+            from telegram_fixes import download_with_quality
+            # نوع دانلود و کیفیت
+            quality = selected_option.get('quality', 'best')
+            
+            # همگام‌سازی با تشخیص نوع دانلود در بالا
+            quality = selected_option.get('quality', 'best')
+            
+            # دقت بیشتر برای تشخیص درخواست‌های ویدیویی
+            if ('240p' in option_id or '360p' in option_id or '480p' in option_id or 
+                '720p' in option_id or '1080p' in option_id):
+                is_audio = False
+                logger.info(f"درخواست ویدیویی در پردازش تشخیص داده شد: {option_id}")
+            elif 'audio' in option_id.lower() or selected_option.get('type') == 'audio':
+                is_audio = True
+                logger.info(f"درخواست صوتی در پردازش تشخیص داده شد: {option_id}")
+            
+            # پیام وضعیت
+            if is_audio:
+                await query.edit_message_text(STATUS_MESSAGES["downloading_audio"])
+                quality = 'audio'  # تنظیم کیفیت به 'audio' برای دانلود صوتی
+                logger.info("دانلود درخواست صوتی اینستاگرام")
+            else:
+                await query.edit_message_text(STATUS_MESSAGES["downloading"])
+            
+            # ابتدا ویدیو را با بهترین کیفیت دانلود می‌کنیم
+            # بررسی کش برای بهترین کیفیت
+            cached_file = get_from_cache(url, "best")
+            
+            if cached_file and os.path.exists(cached_file):
+                logger.info(f"فایل با بهترین کیفیت از کش برگردانده شد: {cached_file}")
+                best_quality_file = cached_file
+            else:
+                # دانلود با بهترین کیفیت
+                logger.info(f"دانلود اینستاگرام با بهترین کیفیت")
+                best_quality_file = await download_with_quality(url, "best", False, "instagram")
+                
+                if best_quality_file and os.path.exists(best_quality_file):
+                    # افزودن به کش با در نظر گرفتن کیفیت
+                    add_to_cache(url, best_quality_file, "best")
+                    logger.info(f"فایل با کیفیت بالا با موفقیت دانلود شد: {best_quality_file}")
+                else:
+                    logger.error(f"دانلود با ماژول بهبود یافته ناموفق بود")
+                    raise Exception("دانلود با ماژول بهبود یافته ناموفق بود")
+            
+            # حالا اگر کیفیت درخواستی "best" نیست یا audio است، فایل را تبدیل می‌کنیم
+            if quality == "best" and not is_audio:
+                # اگر کیفیت درخواستی بهترین است، همان فایل را برمی‌گردانیم
+                downloaded_file = best_quality_file
+                logger.info(f"فایل با کیفیت بالا بدون تغییر برگردانده شد: {downloaded_file}")
+            else:
+                # تبدیل فایل به کیفیت مورد نظر
+                logger.info(f"تبدیل فایل به کیفیت {quality}")
+                
+                # پیام وضعیت جدید
+                await query.edit_message_text(STATUS_MESSAGES["processing"])
+                
+                try:
+                    # استفاده از تابع convert_video_quality برای تبدیل کیفیت
+                    from telegram_fixes import convert_video_quality
+                    logger.info(f"تبدیل کیفیت ویدیو با استفاده از ماژول بهبودیافته: {quality}")
+                    
+                    # قبلاً: if is_audio: quality = "audio"
+                    
+                    # تبدیل کیفیت ویدیو یا استخراج صدا با تابع جامع
+                    converted_file = convert_video_quality(
+                        video_path=best_quality_file, 
+                        quality=quality,
+                        is_audio_request=is_audio
+                    )
+                    
+                    if converted_file and os.path.exists(converted_file):
+                        downloaded_file = converted_file
+                        logger.info(f"تبدیل موفق: {downloaded_file}")
+                        # افزودن به کش
+                        add_to_cache(url, downloaded_file, quality)
+                    else:
+                        # خطا در تبدیل
+                        logger.error(f"تبدیل ناموفق بود، برگرداندن فایل اصلی")
+                        downloaded_file = best_quality_file
+                except Exception as e:
+                    logger.error(f"خطا در تبدیل کیفیت: {str(e)}")
+                    # برگرداندن فایل اصلی در صورت خطا
+                    downloaded_file = best_quality_file
+            
+        except ImportError:
+            logger.info("ماژول بهبود یافته در دسترس نیست، استفاده از روش قدیمی")
+            # اگر صدا درخواست شده، دانلود صدا
+            if is_audio:
+                logger.info(f"دانلود صدای پست اینستاگرام: {url[:30]}...")
+                # استفاده از yt-dlp برای دانلود صدا
+                logger.info("استفاده از yt-dlp برای دانلود صدا...")
+                # استخراج کد کوتاه پست
+                shortcode = downloader.extract_post_shortcode(url)
+                if shortcode:
+                    # تنظیمات yt-dlp برای دانلود فقط صدا
+                    ydl_opts = {
+                        'format': 'bestaudio',
+                        'outtmpl': os.path.join(TEMP_DOWNLOAD_DIR, f"instagram_audio_{shortcode}.%(ext)s"),
+                        'quiet': True,
+                        'no_warnings': True,
+                        'postprocessors': [{
+                            'key': 'FFmpegExtractAudio',
+                            'preferredcodec': 'mp3',
+                            'preferredquality': '192',
+                        }],
+                        'user_agent': USER_AGENT,
+                        'http_headers': HTTP_HEADERS
+                    }
+                    
+                    # اجرا در thread pool
+                    loop = asyncio.get_event_loop()
+                    final_path = os.path.join(TEMP_DOWNLOAD_DIR, f"instagram_audio_{shortcode}.mp3")
+                    
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        await loop.run_in_executor(None, ydl.download, [url])
+                    
+                    # بررسی وجود فایل خروجی
+                    if os.path.exists(final_path):
+                        downloaded_file = final_path
+                    else:
+                        # جستجو برای یافتن فایل با پسوندهای متفاوت
+                        for ext in ['mp3', 'aac', 'm4a', 'opus']:
+                            alt_path = os.path.join(TEMP_DOWNLOAD_DIR, f"instagram_audio_{shortcode}.{ext}")
+                            if os.path.exists(alt_path):
+                                downloaded_file = alt_path
+                                break
+                
+                # اگر دانلود صدا موفق نبود، تلاش برای دانلود معمولی و سپس استخراج صدا
+                if not downloaded_file:
+                    logger.info("دانلود صدا ناموفق بود، استفاده از دانلود معمولی و استخراج صدا...")
+                    video_file = await downloader.download_post(url, 'best')
+                    
+                    # استخراج صدا
+                    if video_file and os.path.exists(video_file):
+                        try:
+                            # ارسال پیام وضعیت استخراج صدا
+                            await query.edit_message_text(STATUS_MESSAGES["processing_audio"])
+                            
+                            # استخراج صدا با استفاده از ماژول audio_processing
+                            try:
+                                from audio_processing import extract_audio
+                                audio_file = extract_audio(video_file)
+                                if audio_file and os.path.exists(audio_file):
+                                    downloaded_file = audio_file
+                            except ImportError:
+                                logger.warning("ماژول audio_processing در دسترس نیست")
+                                # استفاده از تابع extract_audio_from_video از ماژول اصلاحات
+                                try:
+                                    from telegram_fixes import extract_audio_from_video
+                                    audio_file = extract_audio_from_video(video_file)
+                                    if audio_file and os.path.exists(audio_file):
+                                        downloaded_file = audio_file
+                                except ImportError:
+                                    logger.warning("هیچ یک از ماژول‌های استخراج صدا در دسترس نیستند")
+                                    # اگر هیچ ماژول موجود نبود، از ویدیو استفاده می‌کنیم
+                                    downloaded_file = video_file
+                        except Exception as e:
+                            logger.error(f"خطا در استخراج صدا: {e}")
+                            # اگر استخراج صدا با خطا مواجه شد، همان ویدیو را برمی‌گردانیم
+                            downloaded_file = video_file
+            else:
+                # دانلود ویدیو با کیفیت انتخاب شده
+                quality = selected_option.get('quality', 'best')
+                logger.info(f"دانلود ویدیوی اینستاگرام با کیفیت {quality}: {url[:30]}...")
+                downloaded_file = await downloader.download_post(url, quality)
+        
+        # بررسی موفقیت دانلود
+        if not downloaded_file or not os.path.exists(downloaded_file):
+            await query.edit_message_text(ERROR_MESSAGES["download_failed"])
+            return
+            
+        # بررسی حجم فایل
+        file_size = os.path.getsize(downloaded_file)
+        if file_size > MAX_TELEGRAM_FILE_SIZE:
+            await query.edit_message_text(ERROR_MESSAGES["file_too_large"])
+            return
+            
+        # ارسال پیام در حال آپلود
+        await query.edit_message_text(STATUS_MESSAGES["uploading"])
+        
+        # ارسال محتوا بر اساس نوع آن
+        if is_audio:
+            # ارسال فایل صوتی
+            with open(downloaded_file, 'rb') as audio_file:
+                caption = f"🎵 صدای دانلود شده از اینستاگرام\n💾 حجم: {human_readable_size(file_size)}"
+                await context.bot.send_audio(
+                    chat_id=update.effective_chat.id,
+                    audio=audio_file,
+                    caption=caption
+                )
+        else:
+            # ارسال ویدیو
+            with open(downloaded_file, 'rb') as video_file:
+                caption = f"📥 دانلود شده از اینستاگرام\n💾 حجم: {human_readable_size(file_size)}"
+                await context.bot.send_video(
+                    chat_id=update.effective_chat.id,
+                    video=video_file,
+                    caption=caption,
+                    supports_streaming=True
+                )
+                
+        # ارسال پیام تکمیل
+        await query.edit_message_text(STATUS_MESSAGES["complete"])
+        
+    except Exception as e:
+        logger.error(f"خطا در دانلود اینستاگرام با گزینه: {str(e)}")
+        logger.error(f"جزئیات خطا: {traceback.format_exc()}")
+        await query.edit_message_text(ERROR_MESSAGES["download_failed"])
+
+async def download_youtube_with_option(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, selected_option: Dict) -> None:
+    """
+    دانلود ویدیوی یوتیوب با استفاده از اطلاعات کامل گزینه
+    
+    Args:
+        update: آبجکت آپدیت تلگرام
+        context: کانتکست تلگرام
+        url: آدرس یوتیوب
+        selected_option: گزینه انتخاب شده از کش
+    """
+    query = update.callback_query
+    user_id = update.effective_user.id
+    user_download_data[user_id] = {'url': url, 'download_time': time.time()}
+    
+    try:
+        logger.info(f"شروع دانلود یوتیوب با گزینه کامل: {selected_option.get('label', 'نامشخص')}")
+        
+        # تعیین نوع دانلود - صوتی یا ویدئویی
+        is_audio = False
+        format_id = selected_option.get('id', '')
+        format_option = selected_option.get('format', '')
+        
+        # بررسی دقیق برای تشخیص دانلود صوتی
+        if 'audio' in format_id.lower() or 'audio' in format_option.lower():
+            is_audio = True
+            logger.info(f"درخواست دانلود صوتی از یوتیوب تشخیص داده شد: {format_id}")
+            await query.edit_message_text(STATUS_MESSAGES["downloading_audio"])
+        else:
+            await query.edit_message_text(STATUS_MESSAGES["downloading"])
+            
+        # بررسی اگر ماژول بهبودهای جدید در دسترس است
+        try:
+            # استفاده از ماژول بهبود یافته
+            from telegram_fixes import download_with_quality
+            
+            logger.info(f"استفاده از ماژول بهبود یافته برای دانلود یوتیوب")
+            # اگر audio انتخاب شده، گزینه is_audio را روشن می‌کنیم
+            if 'audio' in format_id.lower() or 'audio' in format_option.lower():
+                is_audio = True
+                quality = 'audio'
+            else:
+                # تعیین کیفیت براساس انتخاب کاربر
+                quality = selected_option.get('quality', 'best')
+                
+            logger.info(f"کیفیت انتخابی برای دانلود: {quality}, صوتی: {is_audio}")
+            
+            # ابتدا ویدیو را با بهترین کیفیت دانلود می‌کنیم
+            # بررسی کش برای بهترین کیفیت
+            cached_file = get_from_cache(url, "best")
+            
+            if cached_file and os.path.exists(cached_file):
+                logger.info(f"فایل با بهترین کیفیت از کش برگردانده شد: {cached_file}")
+                best_quality_file = cached_file
+            else:
+                # دانلود با بهترین کیفیت
+                logger.info(f"دانلود یوتیوب با بهترین کیفیت")
+                best_quality_file = await download_with_quality(url, "best", False, "youtube")
+                
+                if best_quality_file and os.path.exists(best_quality_file):
+                    # افزودن به کش با در نظر گرفتن کیفیت
+                    add_to_cache(url, best_quality_file, "best")
+                    logger.info(f"فایل با کیفیت بالا با موفقیت دانلود شد: {best_quality_file}")
+                else:
+                    logger.error(f"دانلود با ماژول بهبود یافته ناموفق بود")
+                    raise Exception("دانلود با ماژول بهبود یافته ناموفق بود")
+            
+            # حالا اگر کیفیت درخواستی "best" نیست یا audio است، فایل را تبدیل می‌کنیم
+            if quality == "best" and not is_audio:
+                # اگر کیفیت درخواستی بهترین است، همان فایل را برمی‌گردانیم
+                downloaded_file = best_quality_file
+                logger.info(f"فایل با کیفیت بالا بدون تغییر برگردانده شد: {downloaded_file}")
+            else:
+                # تبدیل فایل به کیفیت مورد نظر
+                logger.info(f"تبدیل فایل به کیفیت {quality}")
+                
+                # پیام وضعیت جدید
+                if is_audio:
+                    await query.edit_message_text(STATUS_MESSAGES["processing_audio"])
+                else:
+                    await query.edit_message_text(STATUS_MESSAGES["processing"])
+                
+                try:
+                    # استفاده از تابع convert_video_quality برای تبدیل کیفیت
+                    from telegram_fixes import convert_video_quality
+                    logger.info(f"تبدیل کیفیت ویدیو با استفاده از ماژول بهبودیافته: {quality}")
+                    
+                    # قبلاً: if is_audio: quality = "audio"
+                    
+                    # تبدیل کیفیت ویدیو یا استخراج صدا با تابع جامع
+                    converted_file = convert_video_quality(
+                        video_path=best_quality_file, 
+                        quality=quality,
+                        is_audio_request=is_audio
+                    )
+                    
+                    if converted_file and os.path.exists(converted_file):
+                        downloaded_file = converted_file
+                        logger.info(f"تبدیل موفق: {downloaded_file}")
+                        # افزودن به کش
+                        add_to_cache(url, downloaded_file, quality)
+                    else:
+                        # خطا در تبدیل
+                        logger.error(f"تبدیل ناموفق بود، برگرداندن فایل اصلی")
+                        downloaded_file = best_quality_file
+                except Exception as e:
+                    logger.error(f"خطا در تبدیل کیفیت: {str(e)}")
+                    # برگرداندن فایل اصلی در صورت خطا
+                    downloaded_file = best_quality_file
+                    
+                    # اگر درخواست صوتی بود، تلاش کنیم با روش‌های دیگر صدا را استخراج کنیم
+                    if is_audio:
+                        audio_path = None
+                        try:
+                            from telegram_fixes import extract_audio_from_video
+                            audio_path = extract_audio_from_video(downloaded_file, 'mp3', '192k')
+                            logger.info(f"تبدیل با ماژول telegram_fixes: {audio_path}")
+                        except (ImportError, Exception) as e:
+                            logger.error(f"خطا در استفاده از تابع extract_audio_from_video: {e}")
+                    
+                        # روش دیگر: استفاده مستقیم از FFmpeg
+                        if not audio_path or not os.path.exists(audio_path):
+                            logger.info("استفاده مستقیم از FFmpeg...")
+                            try:
+                                import subprocess
+                                import uuid
+                                
+                                base_name = os.path.basename(downloaded_file)
+                                file_name, _ = os.path.splitext(base_name)
+                                output_dir = os.path.dirname(downloaded_file)
+                                audio_path = os.path.join(output_dir, f"{file_name}_audio_{uuid.uuid4().hex[:8]}.mp3")
+                                
+                                cmd = [
+                                    '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
+                                    '-i', downloaded_file,
+                                    '-vn',  # بدون ویدیو
+                                    '-acodec', 'libmp3lame',
+                                    '-ab', '192k',
+                                    '-ar', '44100',
+                                    '-ac', '2',
+                                    '-y',  # جایگزینی فایل موجود
+                                    audio_path
+                                ]
+                                
+                                logger.info(f"اجرای دستور FFmpeg: {' '.join(cmd)}")
+                                result = subprocess.run(
+                                    cmd,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    text=True
+                                )
+                                
+                                if result.returncode != 0:
+                                    logger.error(f"خطا در استخراج صدا با FFmpeg: {result.stderr}")
+                                elif os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+                                    logger.info(f"استخراج صدا با FFmpeg موفق: {audio_path}")
+                                    downloaded_file = audio_path  # جایگزینی فایل ویدیویی با فایل صوتی
+                                else:
+                                    logger.error(f"فایل صوتی ایجاد نشد یا خالی است: {audio_path}")
+                            except Exception as e:
+                                logger.error(f"خطا در اجرای FFmpeg: {e}")
+                        else:
+                            # اگر استخراج صدا موفق بود، فایل را جایگزین می‌کنیم
+                            downloaded_file = audio_path
+                
+                # افزودن به کش با کیفیت
+                cache_quality = "audio" if is_audio else quality
+                add_to_cache(url, downloaded_file, cache_quality)
+                logger.info(f"فایل با موفقیت دانلود شد (کیفیت {cache_quality}): {downloaded_file}")
+                
+        except (ImportError, Exception) as e:
+            logger.warning(f"خطا در استفاده از ماژول بهبود یافته: {e}")
+            
+            # ایجاد دانلودر یوتیوب
+            downloader = YouTubeDownloader()
+            
+            # روش دانلود را انتخاب می‌کنیم
+            # برای فایل‌های صوتی باید از روش مستقیم استفاده کنیم
+            if is_audio:
+                # تنظیمات دانلود صوتی
+                info = await downloader.get_video_info(url)
+                if not info:
+                    await query.edit_message_text(ERROR_MESSAGES["download_failed"])
+                    return
+                    
+                # ایجاد نام فایل خروجی
+                video_id = info.get('id', 'video')
+                title = info.get('title', 'youtube_audio').replace('/', '_')
+                title = clean_filename(title)
+                
+                output_filename = f"{title}_{video_id}.mp3"
+                output_path = get_unique_filename(TEMP_DOWNLOAD_DIR, output_filename)
+                
+                # تنظیمات yt-dlp برای دانلود فقط صوت
+                ydl_opts = {
+                    'format': 'bestaudio',
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': '192',
+                    }],
+                    'ffmpeg_location': '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
+                    'outtmpl': output_path.replace('.mp3', '.%(ext)s'),
+                    'quiet': True,
+                    'cookiefile': YOUTUBE_COOKIE_FILE,
+                    'noplaylist': True,
+                }
+                
+                # دانلود فایل
+                logger.info(f"دانلود صدای یوتیوب با yt-dlp برای: {url[:30]}...")
+                
+                # اجرا در thread pool
+                loop = asyncio.get_event_loop()
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    await loop.run_in_executor(None, ydl.download, [url])
+                
+                # بررسی وجود فایل mp3
+                if not os.path.exists(output_path):
+                    # جستجو برای یافتن فایل با پسوندهای متفاوت
+                    for ext in ['mp3', 'aac', 'm4a', 'opus', 'webm']:
+                        alt_path = output_path.replace('.mp3', f'.{ext}')
+                        if os.path.exists(alt_path):
+                            if ext != 'mp3':  # اگر پسوند فایل mp3 نیست، آن را تغییر نام بده
+                                os.rename(alt_path, output_path)
+                            break
+                
+                if not os.path.exists(output_path):
+                    logger.error(f"فایل صوتی دانلود شده پیدا نشد: {output_path}")
+                    await query.edit_message_text(ERROR_MESSAGES["download_failed"])
+                    return
+                    
+                downloaded_file = output_path
+                # افزودن به کش با کیفیت
+                add_to_cache(url, downloaded_file, "audio")
+                
+            else:
+                # دانلود محتوا با فرمت انتخاب شده
+                format_option = selected_option.get('format_id', selected_option.get('format', ''))
+                logger.info(f"فرمت انتخاب شده برای دانلود ویدیو: {format_option}")
+                
+                downloaded_file = await downloader.download_video(url, format_option if format_option else format_id)
+        
+        # بررسی موفقیت دانلود
+        if not downloaded_file or not os.path.exists(downloaded_file):
+            await query.edit_message_text(ERROR_MESSAGES["download_failed"])
+            return
+            
+        # بررسی حجم فایل
+        file_size = os.path.getsize(downloaded_file)
+        if file_size > MAX_TELEGRAM_FILE_SIZE:
+            await query.edit_message_text(ERROR_MESSAGES["file_too_large"])
+            return
+            
+        # ارسال پیام در حال آپلود
+        await query.edit_message_text(STATUS_MESSAGES["uploading"])
+        
+        is_playlist = 'playlist' in format_option.lower() if format_option else 'playlist' in format_id.lower()
+        
+        # تشخیص نوع فایل براساس پسوند فایل (برای اطمینان)
+        if downloaded_file and os.path.exists(downloaded_file) and downloaded_file.endswith(('.mp3', '.m4a', '.aac', '.wav')):
+            is_audio = True
+        
+        # ارسال فایل بر اساس نوع آن
+        if is_audio:
+            # ارسال فایل صوتی
+            try:
+                if os.path.exists(downloaded_file):
+                    with open(downloaded_file, 'rb') as audio_file:
+                        caption = f"🎵 صدای دانلود شده از یوتیوب\n💾 حجم: {human_readable_size(file_size)}"
+                        logger.info(f"ارسال فایل صوتی: {downloaded_file}")
+                        await context.bot.send_audio(
+                            chat_id=update.effective_chat.id,
+                            audio=audio_file,
+                            caption=caption
+                        )
+                else:
+                    logger.error(f"فایل صوتی برای ارسال وجود ندارد: {downloaded_file}")
+                    await query.edit_message_text(ERROR_MESSAGES["download_failed"])
+                    return
+            except Exception as e:
+                logger.error(f"خطا در ارسال فایل صوتی: {str(e)}. تلاش برای ارسال به عنوان سند...")
+                # اگر ارسال به عنوان صوت خطا داد، به عنوان سند ارسال کن
+                with open(downloaded_file, 'rb') as document_file:
+                    caption = f"🎵 صدای دانلود شده از یوتیوب\n💾 حجم: {human_readable_size(file_size)}"
+                    await context.bot.send_document(
+                        chat_id=update.effective_chat.id,
+                        document=document_file,
+                        caption=caption
+                    )
+        elif is_playlist:
+            # ارسال فایل زیپ پلی‌لیست
+            with open(downloaded_file, 'rb') as zip_file:
+                caption = f"📁 پلی‌لیست دانلود شده از یوتیوب\n💾 حجم: {human_readable_size(file_size)}"
+                await context.bot.send_document(
+                    chat_id=update.effective_chat.id,
+                    document=zip_file,
+                    caption=caption
+                )
+        else:
+            # ارسال ویدیو
+            with open(downloaded_file, 'rb') as video_file:
+                caption = f"📥 دانلود شده از یوتیوب\n💾 حجم: {human_readable_size(file_size)}\n🎬 کیفیت: {selected_option.get('label', 'نامشخص')}"
+                await context.bot.send_video(
+                    chat_id=update.effective_chat.id,
+                    video=video_file,
+                    caption=caption,
+                    supports_streaming=True
+                )
+                
+        # ارسال پیام تکمیل
+        await query.edit_message_text(STATUS_MESSAGES["complete"])
+        
+    except Exception as e:
+        logger.error(f"خطا در دانلود یوتیوب با گزینه: {str(e)}")
+        logger.error(f"جزئیات خطا: {traceback.format_exc()}")
+        await query.edit_message_text(ERROR_MESSAGES["download_failed"])
+
+async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, option_id: str) -> None:
+    """
+    دانلود ویدیوی یوتیوب
+    
+    Args:
+        update: آبجکت آپدیت تلگرام
+        context: کانتکست تلگرام
+        url: آدرس یوتیوب
+        option_id: شناسه گزینه انتخاب شده (می‌تواند نام کیفیت یا شماره باشد)
+    """
+    query = update.callback_query
+    
+    try:
+        # ایجاد دانلودر یوتیوب
+        downloader = YouTubeDownloader()
+        
+        # تعیین نوع درخواست و کیفیت بر اساس شماره گزینه یا محتوای آن
+        is_audio_request = False
+        format_option = "best"  # مقدار پیش‌فرض
+        quality_display = "بهترین کیفیت"
+        
+        logger.info(f"گزینه انتخاب شده برای دانلود یوتیوب: {option_id}")
+        
+        # بررسی اگر option_id یک عدد است
+        if option_id.isdigit():
+            # تبدیل به عدد برای راحتی کار
+            option_num = int(option_id)
+            
+            # نگاشت مستقیم شماره گزینه به کیفیت متناظر با تضمین دریافت ویدیو
+            # گزینه‌های یوتیوب معمولاً: 0: 1080p, 1: 720p, 2: 480p, 3: 360p, 4: 240p, 5: audio
+            if option_num == 0:
+                # روش ایمن‌تر با تضمین کیفیت 1080p و جلوگیری از نمایش صوتی فقط
+                format_option = "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best[ext=mp4]/best"
+                quality = "1080p"
+                quality_display = "کیفیت Full HD (1080p)"
+            elif option_num == 1:
+                format_option = "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[ext=mp4]/best"
+                quality = "720p"
+                quality_display = "کیفیت HD (720p)"
+            elif option_num == 2:
+                format_option = "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]/best[ext=mp4]/best"
+                quality = "480p"
+                quality_display = "کیفیت متوسط (480p)"
+            elif option_num == 3:
+                format_option = "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/best[height<=360][ext=mp4]/best[ext=mp4]/best"
+                quality = "360p"
+                quality_display = "کیفیت پایین (360p)"
+            elif option_num == 4:
+                format_option = "bestvideo[ext=mp4][height<=240]+bestaudio[ext=m4a]/best[height<=240][ext=mp4]/best[ext=mp4]/best"
                 quality = "240p"
                 quality_display = "کیفیت خیلی پایین (240p)"
             elif option_num == 5:
