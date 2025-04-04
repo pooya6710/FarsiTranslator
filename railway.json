@@ -5,7 +5,7 @@
     "nixpacksConfigPath": ".nixpacks/environment.toml"
   },
   "deploy": {
-    "startCommand": "bash railway_startup.sh",
+    "startCommand": "python complete_aria2_removal.py && python clean_ytdlp_patch.py && bash railway_startup.sh",
     "restartPolicyType": "ALWAYS",
     "healthcheckPath": "/",
     "healthcheckTimeout": 300

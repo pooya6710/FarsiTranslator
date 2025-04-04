@@ -2,7 +2,7 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "bash railway_startup.sh"
+startCommand = "python complete_aria2_removal.py && python clean_ytdlp_patch.py && bash railway_startup.sh"
 restartPolicyType = "always"
 
 [nixpacks]
@@ -15,3 +15,6 @@ HTTP_DOWNLOADER = "native"
 YTDLP_DOWNLOADER = "native"
 NO_EXTERNAL_DOWNLOADER = "1"
 YTDLP_NO_ARIA2 = "1"
+ARIA2C_DISABLED = "1"
+DISABLE_ARIA2C = "true"
+YTDLP_CONFIG = "{\"external_downloader\":null,\"external_downloader_args\":null}"

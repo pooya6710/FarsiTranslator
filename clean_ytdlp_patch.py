@@ -101,49 +101,148 @@ def create_clean_ytdlp():
         with open(external_file, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # حذف تمام متدهای مربوط به aria2c
-        # حذف تعریف aria2c از SUPPORTED_DOWNLOADERS
-        content = content.replace("'aria2c': _aria2c_class,", "# 'aria2c': None,")
-        
-        # حذف تابع _aria2c_filename
-        def replace_function(file_content, func_name):
-            import re
-            pattern = r'def\s+' + re.escape(func_name) + r'\(.*?\):.*?(?=\n\S)'
-            return re.sub(pattern, f"def {func_name}(*args, **kwargs):\n        return None", 
-                          file_content, flags=re.DOTALL)
-        
-        content = replace_function(content, '_aria2c_filename')
-        content = replace_function(content, 'aria2c_rpc')
-        
-        # جایگزینی کلاس _aria2c_class با یک کلاس خالی
-        try:
-            start_index = content.find('_aria2c_class')
-            if start_index != -1:
-                # یافتن پایان کلاس
-                class_start = content.rfind('class', 0, start_index)
-                if class_start != -1:
-                    next_class = content.find('class', start_index)
-                    if next_class != -1:
-                        content = content[:class_start] + "\nclass _aria2c_class:\n    @classmethod\n    def get_available_downloaders(cls):\n        return {}\n\n" + content[next_class:]
-        except Exception as e:
-            logger.error(f"خطا در پچ کردن کلاس _aria2c_class: {e}")
+        # روش جایگزینی کامل: فایل را با نسخه بدون aria2c جایگزین کنیم
+        new_content = """
+# coding: utf-8
+from __future__ import unicode_literals
+
+import os.path
+import re
+import subprocess
+import sys
+import time
+
+from .common import FileDownloader
+from ..utils import (
+    check_executable,
+    encodeFilename,
+    encodeArgument,
+)
+
+
+class ExternalFD(FileDownloader):
+    \"\"\"Base class for external downloader \"\"\"
+
+    def real_download(self, filename, info_dict):
+        self.report_destination(filename)
+        tmpfilename = self.temp_name(filename)
+
+        retval = self._call_downloader(tmpfilename, info_dict)
+        if retval == 0:
+            self.try_rename(tmpfilename, filename)
+            return True
+        else:
+            self.to_screen('\\nERROR: External downloader exited with error code %s' % retval)
+            return False
+
+    def _call_downloader(self, tmpfilename, info_dict):
+        \"\"\"Either overwrite this or implement _make_cmd\"\"\"
+        cmd = [encodeArgument(a) for a in self._make_cmd(tmpfilename, info_dict)]
+
+        self._debug_cmd(cmd)
+
+        p = subprocess.Popen(
+            cmd, stderr=subprocess.PIPE)
+        _, stderr = p.communicate_or_kill()
+        if p.returncode != 0:
+            self._debug_cmd_stderr(cmd, stderr)
+        return p.returncode
+
+
+class CurlFD(ExternalFD):
+    AVAILABLE_OPT = '-V'
+
+    def _make_cmd(self, tmpfilename, info_dict):
+        cmd = [
+            'curl', '--location', '--silent', '--show-error', '--output', tmpfilename]
+        for key, val in info_dict.get('http_headers', {}).items():
+            cmd += ['--header', '%s: %s' % (key, val)]
+
+        # If bandwidth is being throttled, tell curl to limit its download
+        # rate to avoid going over the limit
+        throttled_bandwidth = info_dict.get('throttled_bandwidth')
+        if throttled_bandwidth is not None:
+            cmd += ['--limit-rate', throttled_bandwidth]
+
+        cmd += [info_dict['url']]
+        return cmd
+
+
+class WgetFD(ExternalFD):
+    AVAILABLE_OPT = '--version'
+
+    def _make_cmd(self, tmpfilename, info_dict):
+        cmd = [
+            'wget', '-O', tmpfilename, '--no-check-certificate', '--no-verbose']
+        for key, val in info_dict.get('http_headers', {}).items():
+            cmd += ['--header', '%s: %s' % (key, val)]
+
+        # If bandwidth is being throttled, tell wget to limit its download
+        # rate to avoid going over the limit. Support for this feature was
+        # added in wget 1.16.
+        throttled_bandwidth = info_dict.get('throttled_bandwidth')
+        if throttled_bandwidth is not None:
+            cmd += ['--limit-rate', throttled_bandwidth]
+
+        cmd += [info_dict['url']]
+        return cmd
+
+
+class Aria2AFD(ExternalFD):
+    # This class is completely empty to prevent any use of aria2c
+    AVAILABLE_OPT = '--version'
+    
+    def _make_cmd(self, tmpfilename, info_dict):
+        # This method will never be called since aria2c is disabled
+        raise ValueError("aria2c is disabled")
+
+
+_BY_NAME = {
+    'curl': CurlFD,
+    'wget': WgetFD,
+}
+# Do not include aria2c in the available downloaders
+"""
         
         # نوشتن فایل اصلاح شده
         with open(external_file, 'w', encoding='utf-8') as f:
-            f.write(content)
+            f.write(new_content)
         logger.info(f"فایل {external_file} با موفقیت پچ شد.")
     
-    # 2. پچ کردن options.py: حذف اشارات به aria2c در راهنمای دستورات
+    # 2. پچ کردن options.py: حذف کامل اشارات به aria2c
     options_file = os.path.join(ytdlp_path, 'options.py')
     if os.path.exists(options_file):
         with open(options_file, 'r', encoding='utf-8') as f:
             content = f.read()
         
+        # روش جایگزینی کامل برای _EXTERNAL_DOWNLOADERS
+        if '_EXTERNAL_DOWNLOADERS =' in content:
+            new_downloaders = """
+    _EXTERNAL_DOWNLOADERS = {
+        'native': [''],
+        'curl': ['curl'],
+        'wget': ['wget'],
+        'ffmpeg': ['ffmpeg'],
+        # aria2c is intentionally removed
+    }
+"""
+            # جایگزینی با الگوی regex
+            import re
+            content = re.sub(
+                r'_EXTERNAL_DOWNLOADERS\s*=\s*\{[^}]*\}',
+                new_downloaders.strip(),
+                content
+            )
+            
         # حذف اشارات به aria2c در توضیحات خط فرمان
         content = content.replace("'E.g. --downloader aria2c --downloader \"dash,m3u8:native\" will use '", 
-                                 "'E.g. --downloader \"dash,m3u8:native\" will use '")
+                                "'E.g. --downloader \"dash,m3u8:native\" will use '")
         content = content.replace("'aria2c for http/ftp downloads, and the native downloader for dash/m3u8 downloads '",
-                                 "'the native downloader for dash/m3u8 downloads '")
+                                "'the native downloader for dash/m3u8 downloads '")
+        
+        # حذف هرگونه منطق استفاده از aria2c
+        content = content.replace("cls._EXTERNAL_DOWNLOADERS['aria2c']", 
+                                "[]  # aria2c intentionally disabled")
         
         # نوشتن فایل اصلاح شده
         with open(options_file, 'w', encoding='utf-8') as f:
