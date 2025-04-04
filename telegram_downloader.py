@@ -4065,8 +4065,289 @@ async def main():
                 
                 processing_message.edit_text(error_message)
                 
-        # در این نسخه، ما باید توابع دیگر مانند process_instagram_url_sync و process_youtube_url_sync را نیز بنویسیم
-        # ولی فعلاً فقط توابع اصلی را نوشته‌ایم و بقیه را موقتاً ساده پیاده‌سازی می‌کنیم
+        # در اینجا توابع process_instagram_url_sync و process_youtube_url_sync را می‌نویسیم
+        
+        # نسخه sync از process_instagram_url
+        def process_instagram_url_sync(update, context, url, status_message, url_id=None):
+            """نسخه sync از process_instagram_url برای سازگاری با PTB 13.x"""
+            logger.info(f"شروع پردازش URL اینستاگرام (sync): {url[:30]}...")
+            try:
+                # ایجاد دانلودر اینستاگرام
+                downloader = InstagramDownloader()
+                
+                # تبدیل awaitable به نتیجه با استفاده از یک ترفند ساده
+                # برای نسخه sync، ما رویکرد متفاوتی برای دریافت گزینه‌ها استفاده می‌کنیم
+                options = []
+                
+                # گزینه‌های پیش‌فرض برای اینستاگرام
+                options = [
+                    {"quality": "1080p", "display_name": "کیفیت بالا (1080p)", "type": "video"},
+                    {"quality": "720p", "display_name": "کیفیت متوسط (720p)", "type": "video"},
+                    {"quality": "480p", "display_name": "کیفیت پایین (480p)", "type": "video"},
+                    {"quality": "360p", "display_name": "کیفیت کم (360p)", "type": "video"},
+                    {"quality": "240p", "display_name": "کیفیت خیلی کم (240p)", "type": "video"},
+                    {"quality": "audio", "display_name": "فقط صدا (MP3)", "type": "audio"}
+                ]
+                
+                if not options:
+                    status_message.edit_text(ERROR_MESSAGES["fetch_options_failed"])
+                    return
+                    
+                # ذخیره URL در داده‌های کاربر
+                user_id = update.effective_user.id
+                
+                # اگر url_id ارائه نشده، یک شناسه جدید ایجاد کن
+                if not url_id:
+                    url_id = f"ig_{str(uuid.uuid4().hex)[:6]}"
+                    
+                    # ذخیره در مخزن پایدار
+                    persistent_url_storage[url_id] = {
+                        'url': url,
+                        'type': 'instagram',
+                        'user_id': user_id,
+                        'timestamp': time.time()
+                    }
+                    logger.info(f"URL اینستاگرام در مخزن پایدار ذخیره شد: {url_id}")
+                    
+                    # ذخیره در context.user_data برای سازگاری با قبل
+                    if 'urls' not in context.user_data:
+                        context.user_data['urls'] = {}
+                    context.user_data['urls'][url_id] = url
+                    logger.info(f"URL اینستاگرام در context.user_data ذخیره شد: {url_id}")
+                
+                # ایجاد کیبورد با دکمه‌های منحصر به فرد و کوتاه‌تر
+                keyboard = []
+                
+                # افزودن سرعنوان گروه‌بندی به کیبورد
+                keyboard.append([InlineKeyboardButton("🎬 کیفیت‌های ویدیو:", callback_data="header_video")])
+                
+                # گروه‌بندی دکمه‌ها بر اساس نوع (ویدیو/صدا)
+                video_buttons = []
+                audio_buttons = []
+                
+                for i, option in enumerate(options):
+                    # ایجاد شناسه کوتاه برای کاهش طول callback_data
+                    option_short_id = f"{i}"
+                    # افزودن شماره به نمایش دکمه برای نمایش بهتر
+                    quality_text = option.get('quality', 'نامشخص')
+                    default_label = f"کیفیت {quality_text}"
+                    display_name = option.get('display_name', default_label)
+                    display_label = f"{i+1}. {display_name}"
+                    
+                    # ثبت در لاگ برای اطمینان از صحت داده‌ها
+                    logger.info(f"گزینه {i}: کیفیت={option.get('quality', 'نامشخص')}, نمایش={display_label}")
+                    
+                    # مطمئن شویم متغیرهای مورد نیاز وجود دارند
+                    if 'user_download_data' not in globals():
+                        global user_download_data
+                        user_download_data = {}
+                        
+                    # ذخیره اطلاعات گزینه برای استفاده بعدی
+                    if user_id not in user_download_data:
+                        user_download_data[user_id] = {}
+                    if 'option_map' not in user_download_data[user_id]:
+                        user_download_data[user_id]['option_map'] = {}
+                        
+                    user_download_data[user_id]['option_map'][option_short_id] = option
+                    
+                    # دکمه با callback_data کوتاه‌تر - اصلاح شده با نمایش شماره
+                    button = InlineKeyboardButton(
+                        display_label,
+                        callback_data=f"dl_ig_{option_short_id}_{url_id}"
+                    )
+                    
+                    # تفکیک دکمه‌ها بر اساس نوع
+                    if option.get('type') == 'audio' or "audio" in option.get("quality", "").lower():
+                        audio_buttons.append([button])
+                    else:
+                        video_buttons.append([button])
+                
+                # افزودن دکمه‌های ویدیو
+                keyboard.extend(video_buttons)
+                
+                # افزودن دکمه‌های صوتی
+                if audio_buttons:
+                    keyboard.extend(audio_buttons)
+                else:
+                    # اگر هیچ دکمه صوتی وجود نداشته باشد، یک دکمه اضافه می‌کنیم
+                    keyboard.append([InlineKeyboardButton("🎵 فقط صدا (MP3)", callback_data=f"dl_ig_audio_{url_id}")])
+                    
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                # ارسال گزینه‌های دانلود
+                status_message.edit_text(
+                    INSTAGRAM_DOWNLOAD_OPTIONS,
+                    reply_markup=reply_markup
+                )
+                
+                # ذخیره اطلاعات دانلود برای کاربر
+                user_download_data[user_id]['instagram_options'] = options
+                user_download_data[user_id]['url'] = url
+                
+            except Exception as e:
+                logger.error(f"خطا در پردازش URL اینستاگرام (sync): {str(e)}")
+                
+                # ثبت اطلاعات بیشتر برای اشکال‌زدایی
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                
+                # پیام خطای بهتر به کاربر
+                error_message = ERROR_MESSAGES["generic_error"]
+                
+                # بهبود پیام خطا برای حالت‌های خاص
+                if "rate limit" in str(e).lower():
+                    error_message = ERROR_MESSAGES["instagram_rate_limit"]
+                elif "private" in str(e).lower() or "login" in str(e).lower():
+                    error_message = ERROR_MESSAGES["instagram_private"]
+                elif "network" in str(e).lower() or "connection" in str(e).lower():
+                    error_message = ERROR_MESSAGES["network_error"]
+                elif "timeout" in str(e).lower():
+                    error_message = ERROR_MESSAGES["download_timeout"]
+                    
+                status_message.edit_text(error_message)
+
+        # نسخه sync از process_youtube_url
+        def process_youtube_url_sync(update, context, url, status_message, url_id=None):
+            """نسخه sync از process_youtube_url برای سازگاری با PTB 13.x"""
+            logger.info(f"شروع پردازش URL یوتیوب (sync): {url[:30]}...")
+            try:
+                # ایجاد دانلودر یوتیوب
+                downloader = YouTubeDownloader()
+                
+                # تبدیل awaitable به نتیجه با استفاده از یک ترفند ساده
+                # برای نسخه sync، ما رویکرد متفاوتی برای دریافت گزینه‌ها استفاده می‌کنیم
+                options = []
+                
+                # گزینه‌های پیش‌فرض برای یوتیوب
+                options = [
+                    {"quality": "1080p", "label": "1. کیفیت عالی (1080p)", "format_id": "137+140"},
+                    {"quality": "720p", "label": "2. کیفیت بالا (720p)", "format_id": "136+140"},
+                    {"quality": "480p", "label": "3. کیفیت متوسط (480p)", "format_id": "135+140"},
+                    {"quality": "360p", "label": "4. کیفیت پایین (360p)", "format_id": "134+140"},
+                    {"quality": "240p", "label": "5. کیفیت خیلی پایین (240p)", "format_id": "133+140"},
+                    {"quality": "audio", "label": "6. فقط صدا (MP3)", "format_id": "140", "format_note": "audio only"}
+                ]
+                
+                if not options:
+                    status_message.edit_text(ERROR_MESSAGES["fetch_options_failed"])
+                    return
+                    
+                # ذخیره URL در داده‌های کاربر
+                user_id = update.effective_user.id
+                
+                # اگر url_id ارائه نشده، یک شناسه جدید ایجاد کن
+                if not url_id:
+                    url_id = f"yt_{str(uuid.uuid4().hex)[:6]}"
+                    
+                    # ذخیره در مخزن پایدار
+                    persistent_url_storage[url_id] = {
+                        'url': url,
+                        'type': 'youtube',
+                        'user_id': user_id,
+                        'timestamp': time.time()
+                    }
+                    logger.info(f"URL یوتیوب در مخزن پایدار ذخیره شد: {url_id}")
+                    
+                    # ذخیره در context.user_data برای سازگاری با قبل
+                    if 'urls' not in context.user_data:
+                        context.user_data['urls'] = {}
+                    context.user_data['urls'][url_id] = url
+                    logger.info(f"URL یوتیوب در context.user_data ذخیره شد: {url_id}")
+                
+                # ایجاد کیبورد با دکمه‌های منحصر به فرد و کوتاه‌تر
+                keyboard = []
+                
+                # گروه‌بندی دکمه‌ها بر اساس نوع (ویدیو/صدا/پلی‌لیست)
+                video_buttons = []
+                audio_buttons = []
+                playlist_buttons = []
+                
+                # مطمئن شویم متغیرهای مورد نیاز وجود دارند
+                if 'user_download_data' not in globals():
+                    global user_download_data
+                    user_download_data = {}
+                
+                for i, option in enumerate(options):
+                    # ایجاد شناسه کوتاه برای کاهش طول callback_data
+                    option_short_id = f"{i}"
+                    
+                    # ذخیره اطلاعات گزینه برای استفاده بعدی
+                    if user_id not in user_download_data:
+                        user_download_data[user_id] = {}
+                    if 'option_map' not in user_download_data[user_id]:
+                        user_download_data[user_id]['option_map'] = {}
+                        
+                    user_download_data[user_id]['option_map'][option_short_id] = option
+                    
+                    # دکمه با callback_data کوتاه‌تر
+                    button = InlineKeyboardButton(
+                        option.get("label", f"کیفیت {option.get('quality', 'نامشخص')}"),
+                        callback_data=f"dl_yt_{option_short_id}_{url_id}"
+                    )
+                    
+                    # تفکیک دکمه‌ها بر اساس نوع
+                    if option.get('format_note', '').lower() == 'audio only' or option.get('type') == 'audio':
+                        if not any("دانلود فقط صدا" in btn[0].text for btn in audio_buttons):  # بررسی عدم وجود دکمه تکراری
+                            audio_buttons.append([InlineKeyboardButton("🎵 دانلود فقط صدا", callback_data=f"dl_yt_audio_{url_id}")])
+
+                    elif 'playlist' in option.get('format_id', '').lower():
+                        playlist_buttons.append([button])
+                    else:
+                        video_buttons.append([button])
+                
+                # افزودن عنوان بخش ویدیو
+                if video_buttons:
+                    keyboard.append([InlineKeyboardButton("🎬 کیفیت‌های ویدیو:", callback_data="header_video")])
+                    keyboard.extend(video_buttons)
+                
+                # افزودن عنوان بخش صدا
+                if audio_buttons:
+                    # دکمه عنوان با callback_data خنثی
+                    # اضافه کردن دکمه فقط صدا برای دانلود مستقیم صوتی
+                    keyboard.append([InlineKeyboardButton("🎵 دانلود فقط صدا", callback_data=f"dl_yt_audio_{url_id}")])
+                    
+                # افزودن عنوان بخش پلی‌لیست
+                if playlist_buttons:
+                    keyboard.append([InlineKeyboardButton("🎞️ پلی‌لیست:", callback_data="header_playlist")])
+                    keyboard.extend(playlist_buttons)
+                    
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                # انتخاب پیام مناسب بر اساس نوع لینک یوتیوب
+                if is_youtube_playlist(url):
+                    options_message = YOUTUBE_PLAYLIST_DOWNLOAD_OPTIONS
+                elif is_youtube_shorts(url):
+                    options_message = YOUTUBE_SHORTS_DOWNLOAD_OPTIONS
+                else:
+                    options_message = YOUTUBE_DOWNLOAD_OPTIONS
+                    
+                # ارسال گزینه‌های دانلود
+                status_message.edit_text(
+                    options_message,
+                    reply_markup=reply_markup
+                )
+                
+                # ذخیره اطلاعات دانلود برای کاربر
+                user_download_data[user_id]['youtube_options'] = options
+                user_download_data[user_id]['url'] = url
+                
+            except Exception as e:
+                logger.error(f"خطا در پردازش URL یوتیوب (sync): {str(e)}")
+                
+                # ثبت اطلاعات بیشتر برای اشکال‌زدایی
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                
+                # پیام خطای بهتر به کاربر
+                error_message = ERROR_MESSAGES["generic_error"]
+                
+                # بهبود پیام خطا برای حالت‌های خاص
+                if "network" in str(e).lower() or "connection" in str(e).lower():
+                    error_message = ERROR_MESSAGES["network_error"]
+                elif "timeout" in str(e).lower():
+                    error_message = ERROR_MESSAGES["download_timeout"]
+                elif "copyright" in str(e).lower() or "removed" in str(e).lower():
+                    error_message = "❌ این ویدیو به دلیل مشکلات کپی‌رایت یا محدودیت‌های دیگر قابل دانلود نیست."
+                    
+                status_message.edit_text(error_message)
             
         # ثبت هندلرهای اصلی با نسخه sync
         app.add_handler(CommandHandler("start", start_sync))
