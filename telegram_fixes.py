@@ -76,7 +76,7 @@ os.makedirs(DEFAULT_DOWNLOAD_DIR, exist_ok=True)
 # تنظیمات FFmpeg
 DEFAULT_FFMPEG_PATH = FFMPEG_PATH  # استفاده از مسیر تشخیص داده شده
 
-# تعیین کیفیت‌های استاندارد ویدیو با گزینه‌های پیشرفته
+# تعیین کیفیت‌های استاندارد ویدیو با گزینه‌های پیشرفته و بهینه‌سازی شده برای تناسب حجم با کیفیت
 # نقشه کیفیت‌های ویدیو با مشخصات کامل برای پردازش
 VIDEO_QUALITY_MAP = {
     'best': {
@@ -91,7 +91,7 @@ VIDEO_QUALITY_MAP = {
         'height': 1080, 
         'width': 1920, 
         'display_name': 'کیفیت Full HD (1080p)', 
-        'ffmpeg_options': ['-vf', 'scale=-2:1080', '-b:v', '4000k'],
+        'ffmpeg_options': ['-vf', 'scale=-2:1080', '-b:v', '6000k'],
         'format_note': 'فول اچ‌دی',
         'priority': 2
     },
@@ -99,7 +99,7 @@ VIDEO_QUALITY_MAP = {
         'height': 720, 
         'width': 1280, 
         'display_name': 'کیفیت HD (720p)', 
-        'ffmpeg_options': ['-vf', 'scale=-2:720', '-b:v', '2500k'],
+        'ffmpeg_options': ['-vf', 'scale=-2:720', '-b:v', '3500k'],
         'format_note': 'اچ‌دی',
         'priority': 3
     },
@@ -107,7 +107,7 @@ VIDEO_QUALITY_MAP = {
         'height': 480, 
         'width': 854, 
         'display_name': 'کیفیت متوسط (480p)', 
-        'ffmpeg_options': ['-vf', 'scale=-2:480', '-b:v', '1000k'],
+        'ffmpeg_options': ['-vf', 'scale=-2:480', '-b:v', '2000k'],
         'format_note': 'کیفیت متوسط',
         'priority': 4
     },
@@ -115,7 +115,7 @@ VIDEO_QUALITY_MAP = {
         'height': 480, 
         'width': 854, 
         'display_name': 'کیفیت متوسط (480p)', 
-        'ffmpeg_options': ['-vf', 'scale=-2:480', '-b:v', '1000k'],
+        'ffmpeg_options': ['-vf', 'scale=-2:480', '-b:v', '2000k'],
         'format_note': 'کیفیت متوسط',
         'priority': 4
     },
@@ -123,7 +123,7 @@ VIDEO_QUALITY_MAP = {
         'height': 360, 
         'width': 640, 
         'display_name': 'کیفیت پایین (360p)', 
-        'ffmpeg_options': ['-vf', 'scale=-2:360', '-b:v', '700k'],
+        'ffmpeg_options': ['-vf', 'scale=-2:360', '-b:v', '1200k'],
         'format_note': 'کیفیت پایین',
         'priority': 5
     },
@@ -131,7 +131,7 @@ VIDEO_QUALITY_MAP = {
         'height': 240, 
         'width': 426, 
         'display_name': 'کیفیت خیلی پایین (240p)', 
-        'ffmpeg_options': ['-vf', 'scale=-2:240', '-b:v', '500k'],
+        'ffmpeg_options': ['-vf', 'scale=-2:240', '-b:v', '700k'],
         'format_note': 'کیفیت خیلی پایین',
         'priority': 6
     },
@@ -139,7 +139,7 @@ VIDEO_QUALITY_MAP = {
         'height': 240, 
         'width': 426, 
         'display_name': 'کیفیت پایین (240p)', 
-        'ffmpeg_options': ['-vf', 'scale=-2:240', '-b:v', '500k'],
+        'ffmpeg_options': ['-vf', 'scale=-2:240', '-b:v', '700k'],
         'format_note': 'کیفیت پایین',
         'priority': 6
     },
@@ -415,10 +415,10 @@ async def download_with_quality(url: str, quality: str = 'best', is_audio: bool 
                 # تنظیمات پیشرفته برای کنترل کیفیت
                 if quality == 'medium':
                     # محدود کردن بیت‌ریت برای کیفیت متوسط
-                    instagram_ffmpeg_options = ['-b:v', '1500k', '-maxrate', '1800k', '-bufsize', '3000k']
+                    instagram_ffmpeg_options = ['-b:v', '2000k', '-maxrate', '2500k', '-bufsize', '4000k']
                 elif quality == 'low':
                     # محدود کردن بیت‌ریت برای کیفیت پایین
-                    instagram_ffmpeg_options = ['-b:v', '800k', '-maxrate', '1000k', '-bufsize', '1600k']
+                    instagram_ffmpeg_options = ['-b:v', '700k', '-maxrate', '900k', '-bufsize', '1600k']
                     
                 # تنظیمات پیشرفته برای کنترل کیفیت
                 ydl_opts.update({
@@ -774,16 +774,16 @@ def method_ffmpeg_advanced(video_path: str, quality: str, target_height: int, ou
     else:
         scale_filter = f'scale=-2:{target_height}:force_original_aspect_ratio=decrease,format=yuv420p'
     
-    # بیت‌ریت مناسب برای هر کیفیت - بهبود یافته با افزایش شدید برای حل مشکل حجم فایل‌ها
+    # بیت‌ریت هوشمندانه برای هر کیفیت - تنظیم شده برای اطمینان از تناسب حجم با کیفیت
     video_bitrates = {
-        "1080p": "8000k",  # بیت‌ریت بسیار بالاتر برای 1080p
-        "720p": "4500k",   # بیت‌ریت بالاتر برای 720p
-        "480p": "2500k",   # بیت‌ریت متوسط رو به بالا
-        "360p": "1500k",   # بیت‌ریت متوسط
-        "240p": "800k"     # بیت‌ریت کم
+        "1080p": "6000k",  # بیت‌ریت بالا برای 1080p (کاهش نسبت به قبل برای حجم منطقی‌تر)
+        "720p": "3500k",   # بیت‌ریت متوسط رو به بالا برای 720p (کاهش برای حل مشکل)
+        "480p": "2000k",   # بیت‌ریت متوسط
+        "360p": "1200k",   # بیت‌ریت متوسط رو به پایین
+        "240p": "700k"     # بیت‌ریت کم
     }
     
-    video_bitrate = video_bitrates.get(quality, "4000k")  # بیت‌ریت پیش‌فرض بالاتر
+    video_bitrate = video_bitrates.get(quality, "3000k")  # بیت‌ریت پیش‌فرض کمتر
     
     # دستور ffmpeg فوق‌بهینه با پارامترهای تنظیم شده برای سرعت چندبرابری
     cmd = [
@@ -852,16 +852,16 @@ def method_ffmpeg_simple(video_path: str, quality: str, target_height: int, outp
     
     logger.info(f"روش ساده ffmpeg برای تبدیل به کیفیت {quality}")
     
-    # بیت‌ریت مناسب برای هر کیفیت - بهبود یافته با افزایش شدید برای حل مشکل حجم فایل‌ها
+    # بیت‌ریت هوشمندانه برای هر کیفیت - تنظیم شده برای اطمینان از تناسب حجم با کیفیت
     video_bitrates = {
-        "1080p": "8000k",  # بیت‌ریت بسیار بالاتر برای 1080p
-        "720p": "4500k",   # بیت‌ریت بالاتر برای 720p
-        "480p": "2500k",   # بیت‌ریت متوسط رو به بالا
-        "360p": "1500k",   # بیت‌ریت متوسط
-        "240p": "800k"     # بیت‌ریت کم
+        "1080p": "6000k",  # بیت‌ریت بالا برای 1080p (کاهش نسبت به قبل برای حجم منطقی‌تر)
+        "720p": "3500k",   # بیت‌ریت متوسط رو به بالا برای 720p (کاهش برای حل مشکل)
+        "480p": "2000k",   # بیت‌ریت متوسط
+        "360p": "1200k",   # بیت‌ریت متوسط رو به پایین
+        "240p": "700k"     # بیت‌ریت کم
     }
     
-    video_bitrate = video_bitrates.get(quality, "3000k")  # بیت‌ریت پیش‌فرض بالاتر
+    video_bitrate = video_bitrates.get(quality, "3000k")  # بیت‌ریت پیش‌فرض کمتر
     
     # دستور ffmpeg ساده‌تر با تنظیمات بهینه شده برای سرعت
     cmd = [
@@ -1073,12 +1073,12 @@ def fallback_convert_video(video_path: str, quality: str) -> str:
         file_name, file_ext = os.path.splitext(os.path.basename(video_path))
         converted_file = os.path.join(file_dir, f"{file_name}_fallback_{quality}{file_ext}")
         
-        # بیت‌ریت مناسب برای هر کیفیت در روش پشتیبان - بهبود یافته با افزایش بیت‌ریت
+        # بیت‌ریت هوشمندانه برای هر کیفیت - تنظیم شده برای اطمینان از تناسب حجم با کیفیت
         video_bitrates = {
-            "1080p": "7000k",  # بیت‌ریت بسیار بالاتر
-            "720p": "4000k",   # بیت‌ریت بالاتر
-            "480p": "2000k",   # بیت‌ریت متوسط رو به بالا
-            "360p": "1200k",   # بیت‌ریت متوسط
+            "1080p": "6000k",  # بیت‌ریت بالا برای 1080p (کاهش نسبت به قبل برای حجم منطقی‌تر)
+            "720p": "3500k",   # بیت‌ریت متوسط رو به بالا برای 720p (کاهش برای حل مشکل)
+            "480p": "2000k",   # بیت‌ریت متوسط
+            "360p": "1200k",   # بیت‌ریت متوسط رو به پایین
             "240p": "700k"     # بیت‌ریت کم
         }
         

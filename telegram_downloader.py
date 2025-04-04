@@ -451,6 +451,12 @@ def normalize_instagram_url(url: str) -> str:
     elif '/share/p/' in url:
         shortcode = url.split('/share/p/')[-1].split('?')[0].split('/')[0] 
         return f"https://www.instagram.com/p/{shortcode}/"
+    # تبدیل فرمت جدید اشتراک‌گذاری instagram.com/share/reel/BATI5h7QgK
+    elif url.strip('/').endswith('share/reel') or '/share/reel/' in url:
+        if url.strip('/').endswith('share/reel'):
+            return url  # آدرس ناقص است، نمی‌توان آن را استاندارد کرد
+        shortcode = url.replace('/share/reel/', '/reel/').split('/reel/')[-1].split('?')[0].split('/')[0]
+        return f"https://www.instagram.com/reel/{shortcode}/"
         
     # تبدیل instagr.am به instagram.com
     url = url.replace('instagr.am', 'instagram.com')
@@ -587,6 +593,8 @@ def is_instagram_url(url: str) -> bool:
         r'instagram\.com/stories/[A-Za-z0-9_.-]+/[0-9]+', # استوری
         r'instagr\.am/p/[A-Za-z0-9_-]+',               # لینک کوتاه پست
         r'instagr\.am/reel/[A-Za-z0-9_-]+',            # لینک کوتاه ریل
+        r'instagram\.com/share/reel/[A-Za-z0-9_-]+',   # لینک اشتراک‌گذاری جدید ریل
+        r'instagram\.com/share/p/[A-Za-z0-9_-]+',      # لینک اشتراک‌گذاری جدید پست
     ]
     
     for pattern in valid_patterns:
@@ -806,6 +814,8 @@ class InstagramDownloader:
             r'instagram\.com/tv/([A-Za-z0-9_-]+)',      # IGTV
             r'instagr\.am/p/([A-Za-z0-9_-]+)',          # لینک کوتاه پست
             r'instagr\.am/reel/([A-Za-z0-9_-]+)',       # لینک کوتاه ریل
+            r'instagram\.com/share/reel/([A-Za-z0-9_-]+)',  # لینک اشتراک‌گذاری جدید ریل
+            r'instagram\.com/share/p/([A-Za-z0-9_-]+)',     # لینک اشتراک‌گذاری جدید پست
         ]
         
         for pattern in patterns:
