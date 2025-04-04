@@ -765,10 +765,10 @@ def method_ffmpeg_advanced(video_path: str, quality: str, target_height: int, ou
     # بیت‌ریت مناسب برای هر کیفیت
     video_bitrates = {
         "1080p": "4000k",
-        "720p": "2500k",
-        "480p": "1000k",
-        "360p": "700k",
-        "240p": "400k"
+        "720p": "3500k",  # افزایش بیت‌ریت برای کیفیت بهتر
+        "480p": "1500k",  # افزایش کمی بیت‌ریت
+        "360p": "800k",   # افزایش کمی بیت‌ریت
+        "240p": "500k"    # افزایش کمی بیت‌ریت
     }
     
     video_bitrate = video_bitrates.get(quality, "2000k")
@@ -842,11 +842,11 @@ def method_ffmpeg_simple(video_path: str, quality: str, target_height: int, outp
     
     # بیت‌ریت مناسب برای هر کیفیت
     video_bitrates = {
-        "1080p": "3500k",
-        "720p": "2000k",
-        "480p": "1000k",
-        "360p": "600k", 
-        "240p": "350k"
+        "1080p": "4000k",
+        "720p": "3500k",  # افزایش بیت‌ریت برای کیفیت بهتر
+        "480p": "1500k",  # افزایش کمی بیت‌ریت
+        "360p": "800k",   # افزایش کمی بیت‌ریت
+        "240p": "500k"    # افزایش کمی بیت‌ریت
     }
     
     video_bitrate = video_bitrates.get(quality, "1500k")
