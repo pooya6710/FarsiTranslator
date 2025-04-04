@@ -428,6 +428,14 @@ def normalize_instagram_url(url: str) -> str:
     if not url:
         return url
         
+    # تبدیل لینک‌های اشتراک‌گذاری به فرمت استاندارد
+    if '/share/reel/' in url:
+        shortcode = url.split('/share/reel/')[-1].split('?')[0].split('/')[0]
+        return f"https://www.instagram.com/reel/{shortcode}/"
+    elif '/share/p/' in url:
+        shortcode = url.split('/share/p/')[-1].split('?')[0].split('/')[0] 
+        return f"https://www.instagram.com/p/{shortcode}/"
+        
     # تبدیل instagr.am به instagram.com
     url = url.replace('instagr.am', 'instagram.com')
     
