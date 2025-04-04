@@ -620,6 +620,14 @@ def convert_video_quality(video_path: str, quality: str = "720p", is_audio_reque
         # فورس کردن تبدیل کیفیت با مکانیزم پیشرفته
         force_conversion = True
         
+        # تبدیل quality به رشته اگر عدد باشد
+        if isinstance(quality, (int, float)):
+            logger.info(f"تبدیل کیفیت عددی {quality} به رشته")
+            quality = f"{int(quality)}p"
+            
+        # رشته کردن کیفیت برای اطمینان
+        quality = str(quality)
+        
         # اگر کیفیت نامعتبر است، بررسی دقیق‌تر انجام می‌دهیم
         if quality not in quality_heights:
             # بررسی برای کیفیت‌های عددی با الگوهای مختلف

@@ -12,7 +12,7 @@ import logging
 from datetime import datetime
 
 import sqlalchemy
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy import Column, Integer, BigInteger, String, Float, Boolean, DateTime, Text, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 
@@ -35,7 +35,7 @@ class User(Base):
     """مدل کاربر برای ذخیره اطلاعات کاربران ربات"""
     __tablename__ = 'users'
     
-    id = Column(Integer, primary_key=True)  # آیدی تلگرام کاربر
+    id = Column(BigInteger, primary_key=True)  # آیدی تلگرام کاربر
     username = Column(String(255), nullable=True)  # نام کاربری تلگرام
     first_name = Column(String(255), nullable=True)  # نام کاربر
     last_name = Column(String(255), nullable=True)  # نام خانوادگی کاربر
@@ -53,7 +53,7 @@ class Download(Base):
     __tablename__ = 'downloads'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)  # آیدی کاربر
+    user_id = Column(BigInteger, ForeignKey('users.id'), nullable=False)  # آیدی کاربر
     url = Column(Text, nullable=False)  # آدرس دانلود
     source_type = Column(String(20), nullable=False)  # نوع منبع (youtube, instagram)
     quality = Column(String(10), nullable=True)  # کیفیت دانلود

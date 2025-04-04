@@ -124,6 +124,42 @@ class StatsManager:
         except Exception as e:
             logger.error(f"خطا در ثبت آمار دانلود: {e}")
             return False
+            
+    @staticmethod
+    def add_download_record(user, source_type: str, quality: str, file_size: float = None) -> bool:
+        """
+        ثبت آمار دانلود با استفاده از آبجکت user تلگرام
+        
+        Args:
+            user: آبجکت کاربر تلگرام
+            source_type: نوع منبع (youtube, instagram)
+            quality: کیفیت دانلود
+            file_size: حجم فایل به بایت
+        
+        Returns:
+            bool: موفقیت‌آمیز بودن ثبت
+        """
+        try:
+            # تبدیل حجم فایل از بایت به مگابایت
+            file_size_mb = file_size / (1024 * 1024) if file_size else None
+            
+            # بررسی اینکه درخواست صوتی است یا خیر
+            is_audio = quality == "audio"
+            
+            # ثبت در دیتابیس
+            user_id = user.id
+            return StatsManager.record_download(
+                user_id=user_id,
+                url="",  # URL در این متد ثبت نمی‌شود
+                source_type=source_type,
+                quality=quality,
+                is_audio=is_audio,
+                file_size=file_size_mb,
+                success=True
+            )
+        except Exception as e:
+            logger.error(f"خطا در ثبت آمار: {e}")
+            return False
     
     @staticmethod
     def _update_daily_stats(session) -> None:

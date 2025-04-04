@@ -175,6 +175,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 persistent_url_storage = {}
 
+# ذخیره‌سازی اطلاعات دانلود برای هر کاربر
+# این دیکشنری داده‌های کاربران را برای دانلود ذخیره می‌کند
+user_download_data = {}
+
 # ذخیره‌سازی اطلاعات گزینه‌های دانلود برای هر URL
 # این مخزن برای جلوگیری از مشکل از دست رفتن گزینه‌های دانلود استفاده می‌شود
 option_cache = {}
@@ -948,25 +952,25 @@ class InstagramDownloader:
                 }]
                 logger.info(f"دانلود صوت از اینستاگرام: {url[:30]}...")
             else:
-                # استفاده از تنظیمات دقیق تر برای اطمینان از تفاوت کیفیت
+                # استفاده از تنظیمات بهبود یافته برای اینستاگرام
                 if quality == '240p':
-                    # کیفیت خیلی پایین - حداکثر 240p
-                    format_spec = 'worstvideo[height<=240][ext=mp4]+worstaudio[ext=m4a]/worst[height<=240][ext=mp4]/worst[ext=mp4]'
+                    # کیفیت خیلی پایین - 240p
+                    format_spec = 'best[height<=240]/worst[height>=240]'
                 elif quality == '360p':
-                    # کیفیت پایین - حداکثر 360p
-                    format_spec = 'bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/best[height<=360][ext=mp4]/best[height<=360]'
+                    # کیفیت پایین - 360p
+                    format_spec = 'best[height<=360][height>240]/best[height<=360]'
                 elif quality == '480p':
-                    # کیفیت متوسط - حداکثر 480p
-                    format_spec = 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]/best[height<=480]'
+                    # کیفیت متوسط - 480p
+                    format_spec = 'best[height<=480][height>360]/best[height<=480]'
                 elif quality == '720p':
-                    # کیفیت HD - حداکثر 720p
-                    format_spec = 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[height<=720]'
+                    # کیفیت HD - 720p
+                    format_spec = 'best[height=720]/best[height<=720][height>480]/best[height<=720]'
                 elif quality == '1080p':
-                    # کیفیت Full HD - حداکثر 1080p
-                    format_spec = 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best[height<=1080]'
+                    # کیفیت Full HD - 1080p
+                    format_spec = 'best[height=1080]/best[height>=1080]/best'
                 else:
                     # پیش فرض - بهترین کیفیت موجود
-                    format_spec = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+                    format_spec = 'best'
                 
                 postprocessors = []
                 
@@ -992,18 +996,57 @@ class InstagramDownloader:
             
             # اجرا در thread pool
             loop = asyncio.get_event_loop()
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                await loop.run_in_executor(None, ydl.download, [url])
+            download_success = False
             
-            # بررسی موفقیت دانلود
-            if os.path.exists(final_path) and os.path.getsize(final_path) > 0:
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    await loop.run_in_executor(None, ydl.download, [url])
+                    
+                # بررسی موفقیت دانلود
+                if os.path.exists(final_path) and os.path.getsize(final_path) > 0:
+                    download_success = True
+            except Exception as e:
+                logger.warning(f"خطا در دانلود اینستاگرام با yt-dlp: {e}, تلاش با روش جایگزین...")
+            
+            # اگر دانلود با yt-dlp موفق نبود، از روش جایگزین استفاده کنیم
+            if not download_success:
+                try:
+                    # روش جایگزین: استفاده از 'best' فرمت بدون محدودیت ارتفاع
+                    fallback_ydl_opts = ydl_opts.copy()
+                    fallback_ydl_opts['format'] = 'best'
+                    logger.info("تلاش مجدد با فرمت 'best'")
+                    
+                    with yt_dlp.YoutubeDL(fallback_ydl_opts) as ydl:
+                        await loop.run_in_executor(None, ydl.download, [url])
+                    
+                    # بررسی موفقیت دانلود با روش جایگزین
+                    if os.path.exists(final_path) and os.path.getsize(final_path) > 0:
+                        download_success = True
+                        logger.info("دانلود با روش جایگزین موفق بود")
+                        
+                        # اگر کیفیت خاصی درخواست شده، سعی کنیم ویدیو را با ffmpeg تبدیل کنیم
+                        if not is_audio_download and quality != 'best':
+                            try:
+                                quality_number = int(quality.replace('p', ''))
+                                from telegram_fixes import convert_video_quality
+                                converted_file = convert_video_quality(final_path, quality_number)
+                                if converted_file and os.path.exists(converted_file):
+                                    logger.info(f"ویدیو با موفقیت به کیفیت {quality} تبدیل شد: {converted_file}")
+                                    final_path = converted_file
+                            except Exception as conv_error:
+                                logger.error(f"خطا در تبدیل کیفیت ویدیو: {conv_error}")
+                except Exception as fallback_error:
+                    logger.error(f"خطا در دانلود با روش جایگزین: {fallback_error}")
+            
+            # نتیجه نهایی
+            if download_success or (os.path.exists(final_path) and os.path.getsize(final_path) > 0):
                 # افزودن به کش با کیفیت
                 cache_key = f"{url}_{quality}"
                 add_to_cache(cache_key, final_path)
-                logger.info(f"دانلود با yt-dlp موفق بود: {final_path}, کیفیت: {quality}, حجم: {os.path.getsize(final_path)}")
+                logger.info(f"دانلود اینستاگرام موفق بود: {final_path}, کیفیت: {quality}, حجم: {os.path.getsize(final_path)}")
                 return final_path
             else:
-                logger.warning(f"فایل دانلود شده با yt-dlp خالی یا ناقص است")
+                logger.warning(f"فایل دانلود شده با همه روش‌ها خالی یا ناقص است")
                 return None
                 
         except Exception as e:
@@ -4370,12 +4413,573 @@ async def main():
         # استفاده از نسخه sync برای تابع process_url
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_url_sync))
         
+        # نسخه sync از handle_download_option
+        def handle_download_option_sync(update, context):
+            """نسخه sync از handle_download_option برای سازگاری با PTB 13.x"""
+            query = update.callback_query
+            query.answer()
+            
+            # استخراج اطلاعات کالبک
+            callback_data = query.data
+            user_id = update.effective_user.id
+            
+            # اطمینان از اینکه این هندلر فقط کالبک‌های دانلود را پردازش می‌کند
+            if not callback_data.startswith("dl_"):
+                logger.warning(f"کالبک غیر دانلود {callback_data} به هندلر دانلود ارسال شد - در حال رد کردن")
+                return
+            
+            logger.info(f"کاربر {user_id} دکمه {callback_data} را انتخاب کرد")
+            
+            # ذخیره آخرین کلیک دکمه برای استفاده در بازیابی
+            recent_button_clicks[user_id] = callback_data
+            
+            try:
+                # جدا کردن اجزای کالبک
+                parts = callback_data.split('_')
+                if len(parts) < 4:
+                    logger.warning(f"فرمت نامعتبر کالبک: {callback_data}")
+                    query.edit_message_text(ERROR_MESSAGES["generic_error"])
+                    return
+                    
+                # استخراج نوع دانلود (اینستاگرام/یوتیوب)، گزینه و شناسه URL
+                download_type = parts[1]  # ig یا yt
+                option_id = parts[2]      # شناسه گزینه انتخاب شده
+                url_id = '_'.join(parts[3:])  # شناسه URL (ممکن است شامل '_' باشد)
+                
+                # بررسی اینکه URL موجود است
+                if url_id in persistent_url_storage:
+                    url = persistent_url_storage[url_id]['url']
+                    # ساخت پیام وضعیت
+                    status_message = query.edit_message_text(
+                        STATUS_MESSAGES["processing"],
+                        reply_markup=None
+                    )
+                    
+                    if download_type == "ig":
+                        if option_id == "audio":
+                            # درخواست مستقیم برای فقط صدا
+                            # اینجا برای سادگی از همان ساختار کیفیت استفاده می‌کنیم
+                            selected_option = {
+                                "quality": "audio",
+                                "display_name": "فقط صدا (MP3)",
+                                "type": "audio"
+                            }
+                            download_instagram_with_option_sync(update, context, url, selected_option, status_message)
+                        else:
+                            # بررسی وجود گزینه‌های دانلود در cache
+                            if user_id in user_download_data and 'option_map' in user_download_data[user_id] and option_id in user_download_data[user_id]['option_map']:
+                                selected_option = user_download_data[user_id]['option_map'][option_id]
+                                download_instagram_with_option_sync(update, context, url, selected_option, status_message)
+                            else:
+                                logger.warning(f"گزینه انتخابی {option_id} در کش برای کاربر {user_id} یافت نشد")
+                                # اگر گزینه در کش نباشد، یک رویکرد بازیابی خطا داریم
+                                # سعی می‌کنیم با شماره شناسایی کنیم
+                                quality_map = {
+                                    "0": "1080p", "1": "720p", "2": "480p", "3": "360p", 
+                                    "4": "240p", "5": "audio"
+                                }
+                                if option_id in quality_map:
+                                    quality = quality_map[option_id]
+                                    download_instagram_sync(update, context, url, quality, status_message)
+                                else:
+                                    query.edit_message_text(ERROR_MESSAGES["url_expired"])
+                    
+                    elif download_type == "yt":
+                        if option_id == "audio":
+                            # درخواست مستقیم برای فقط صدا
+                            download_youtube_sync(update, context, url, "audio", status_message)
+                        else:
+                            # بررسی وجود گزینه‌های دانلود در cache
+                            if user_id in user_download_data and 'option_map' in user_download_data[user_id] and option_id in user_download_data[user_id]['option_map']:
+                                selected_option = user_download_data[user_id]['option_map'][option_id]
+                                download_youtube_with_option_sync(update, context, url, selected_option, status_message)
+                            else:
+                                logger.warning(f"گزینه انتخابی {option_id} در کش برای کاربر {user_id} یافت نشد")
+                                # اگر گزینه در کش نباشد، یک رویکرد بازیابی خطا داریم
+                                # سعی می‌کنیم با شماره شناسایی کنیم
+                                quality_map = {
+                                    "0": "1080p", "1": "720p", "2": "480p", "3": "360p", 
+                                    "4": "240p", "5": "audio"
+                                }
+                                if option_id in quality_map:
+                                    quality = quality_map[option_id]
+                                    download_youtube_sync(update, context, url, quality, status_message)
+                                else:
+                                    query.edit_message_text(ERROR_MESSAGES["url_expired"])
+                else:
+                    logger.warning(f"URL ID {url_id} در مخزن یافت نشد")
+                    
+                    # سعی در بازیابی URL از منابع دیگر
+                    matching_urls = [(vid, data) for vid, data in persistent_url_storage.items() 
+                                    if data.get('user_id') == user_id]
+                    
+                    if matching_urls:
+                        # انتخاب آخرین URL ذخیره شده برای کاربر
+                        latest_url_id, latest_data = sorted(
+                            matching_urls, 
+                            key=lambda x: x[1].get('timestamp', 0), 
+                            reverse=True
+                        )[0]
+                        
+                        # ارسال پیام به کاربر و تلاش مجدد با آخرین URL
+                        query.edit_message_text(
+                            f"⚠️ لینک قبلی شما منقضی شده است. در حال تلاش با آخرین لینک...",
+                            reply_markup=None
+                        )
+                        logger.info(f"تلاش مجدد با آخرین URL کاربر: {latest_url_id}")
+                        
+                        # بازسازی قسمت‌های callback_data با URL ID جدید
+                        new_callback_data = f"dl_{download_type}_{option_id}_{latest_url_id}"
+                        # ذخیره در cache برای استفاده بعدی
+                        recent_button_clicks[user_id] = new_callback_data
+                        
+                        # فراخوانی مجدد هندلر با داده‌های جدید
+                        query.data = new_callback_data
+                        handle_download_option_sync(update, context)
+                    else:
+                        query.edit_message_text(ERROR_MESSAGES["url_expired"])
+                
+            except Exception as e:
+                logger.error(f"خطا در پردازش کالبک دانلود: {str(e)}")
+                logger.error(traceback.format_exc())
+                query.edit_message_text(ERROR_MESSAGES["generic_error"])
+        
+        # ساده‌سازی توابع دانلود برای نسخه sync
+        def download_instagram_sync(update, context, url, quality, status_message):
+            """نسخه sync از download_instagram"""
+            try:
+                # ساخت نسخه ساده‌تر از گزینه‌های انتخاب شده
+                selected_option = {
+                    "quality": quality,
+                    "type": "audio" if quality == "audio" else "video"
+                }
+                download_instagram_with_option_sync(update, context, url, selected_option, status_message)
+            except Exception as e:
+                logger.error(f"خطا در دانلود اینستاگرام: {e}")
+                status_message.edit_text(ERROR_MESSAGES["generic_error"])
+        
+        def download_instagram_with_option_sync(update, context, url, selected_option, status_message=None, url_id=None):
+            """نسخه sync از download_instagram_with_option"""
+            user_id = update.effective_user.id
+            # مقداردهی اولیه متغیرهای مهم
+            download_time = 0
+            logger.info(f"شروع دانلود اینستاگرام برای کاربر {user_id} با کیفیت {selected_option.get('quality', 'نامشخص')}")
+            
+            try:
+                # اگر پیام وضعیت ارائه نشده باشد، آن را ایجاد کن
+                if status_message is None:
+                    status_message = update.callback_query.edit_message_text(
+                        STATUS_MESSAGES["processing"],
+                        reply_markup=None
+                    )
+                
+                # نوع دانلود را تعیین کن
+                is_audio = selected_option.get('type') == 'audio' or selected_option.get('quality') == 'audio'
+                
+                if is_audio:
+                    status_message.edit_text(STATUS_MESSAGES["downloading_audio"])
+                else:
+                    status_message.edit_text(STATUS_MESSAGES["downloading"])
+                
+                # انتخاب کیفیت مناسب
+                quality = selected_option.get('quality', 'best')
+                
+                # دانلود را انجام بده
+                instagram_dl = InstagramDownloader()
+                
+                # بررسی کش قبل از دانلود
+                # مقداردهی اولیه file_path
+                file_path = None
+                
+                cache_key = f"{url}_{quality}"
+                if cache_key in option_cache:
+                    file_path = option_cache[cache_key].get('file_path')
+                    if file_path and os.path.exists(file_path):
+                        logger.info(f"فایل از کش دریافت شد: {file_path}")
+                    else:
+                        # اگر فایل در کش نیست یا دیگر وجود ندارد، دانلود کن
+                        file_path = None
+                
+                if not file_path:
+                    # ایجاد و شروع تایمر برای اندازه‌گیری زمان دانلود
+                    download_timer = time.time()
+                
+                    # روش بهبود یافته: ابتدا با بهترین کیفیت دانلود و سپس در صورت نیاز تبدیل کیفیت
+                    try:
+                        # ابتدا با بهترین کیفیت دانلود می‌کنیم
+                        logger.info(f"شروع دانلود ویدیوی اینستاگرام با بهترین کیفیت برای تبدیل به {quality}")
+                        try:
+                            best_file_path = asyncio.get_event_loop().run_until_complete(
+                                instagram_dl._download_with_ytdlp(url, "", "best"))
+                        except RuntimeError:
+                            # اگر event loop در حال اجراست، از روش دیگری استفاده می‌کنیم
+                            new_loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(new_loop)
+                            best_file_path = new_loop.run_until_complete(
+                                instagram_dl._download_with_ytdlp(url, "", "best"))
+                            new_loop.close()
+                        
+                        if best_file_path and os.path.exists(best_file_path) and os.path.getsize(best_file_path) > 0:
+                            logger.info(f"ویدیو با بهترین کیفیت دانلود شد: {best_file_path}")
+                            
+                            # اگر خواسته صوتی باشد
+                            if is_audio:
+                                from audio_processing import extract_audio
+                                file_path = extract_audio(best_file_path)
+                                logger.info(f"صدا استخراج شد: {file_path}")
+                            # اگر 1080p خواسته باشد (بهترین کیفیت) نیازی به تبدیل نیست
+                            elif quality == '1080p' or quality == 'best':
+                                file_path = best_file_path
+                                logger.info(f"بهترین کیفیت انتخاب شده، تبدیل لازم نیست")
+                            else:
+                                # تبدیل به کیفیت درخواست شده
+                                status_message.edit_text(f"⏳ ویدیو دانلود شد، در حال تبدیل به کیفیت {quality}...")
+                                
+                                # تبدیل به کیفیت درخواست شده با ffmpeg
+                                if quality.endswith('p'):
+                                    target_height = int(quality.replace('p', ''))
+                                else:
+                                    # اگر فرمت کیفیت نامعتبر باشد، از مقدار پیش‌فرض استفاده کن
+                                    target_height = {'720': 720, '480': 480, '360': 360, '240': 240}.get(quality, 720)
+                                
+                                from telegram_fixes import convert_video_quality
+                                converted_path = convert_video_quality(best_file_path, target_height)
+                                
+                                if converted_path and os.path.exists(converted_path):
+                                    file_path = converted_path
+                                    logger.info(f"ویدیو با موفقیت به کیفیت {quality} تبدیل شد: {file_path}")
+                                else:
+                                    logger.warning(f"تبدیل کیفیت ناموفق بود، استفاده از فایل اصلی")
+                                    file_path = best_file_path
+                        else:
+                            logger.warning(f"دانلود با بهترین کیفیت ناموفق بود، تلاش مستقیم با کیفیت {quality}")
+                            # تلاش دانلود مستقیم با کیفیت درخواستی
+                            try:
+                                file_path = asyncio.get_event_loop().run_until_complete(
+                                    instagram_dl._download_with_ytdlp(url, "", quality))
+                            except RuntimeError:
+                                new_loop = asyncio.new_event_loop()
+                                asyncio.set_event_loop(new_loop)
+                                file_path = new_loop.run_until_complete(
+                                    instagram_dl._download_with_ytdlp(url, "", quality))
+                                new_loop.close()
+                    except Exception as e:
+                        logger.error(f"خطا در روش بهبود یافته: {e}, تلاش با روش قدیمی")
+                        # روش قدیمی به عنوان پشتیبان
+                        try:
+                            file_path = asyncio.get_event_loop().run_until_complete(
+                                instagram_dl._download_with_ytdlp(url, "", quality))
+                        except RuntimeError:
+                            new_loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(new_loop)
+                            file_path = new_loop.run_until_complete(
+                                instagram_dl._download_with_ytdlp(url, "", quality))
+                            new_loop.close()
+                    
+                    download_time = time.time() - download_timer
+                    logger.info(f"دانلود با کیفیت {quality} در {download_time:.2f} ثانیه کامل شد")
+                    
+                    # افزودن به کش
+                    option_cache[cache_key] = {
+                        'file_path': file_path,
+                        'timestamp': time.time()
+                    }
+                
+                if not file_path or not os.path.exists(file_path):
+                    logger.error(f"خطا: مسیر فایل نامعتبر است - {file_path}")
+                    status_message.edit_text(ERROR_MESSAGES["download_failed"])
+                    return
+                
+                # مدیریت فایل‌های صوتی
+                if is_audio:
+                    status_message.edit_text(STATUS_MESSAGES["processing_audio"])
+                    
+                    # استخراج صدا
+                    audio_file = extract_audio(file_path)
+                    
+                    if not audio_file:
+                        logger.error("خطا در استخراج صدا")
+                        status_message.edit_text(ERROR_MESSAGES["download_failed"])
+                        return
+                        
+                    # آپلود صدا به تلگرام
+                    status_message.edit_text(STATUS_MESSAGES["uploading"])
+                    
+                    with open(audio_file, 'rb') as audio:
+                        update.effective_chat.send_audio(
+                            audio=audio,
+                            title=os.path.basename(audio_file),
+                            caption=f"🎵 فایل صوتی از اینستاگرام\n🔗 {url}",
+                            performer="Instagram Audio"
+                        )
+                        
+                    status_message.edit_text(STATUS_MESSAGES["complete"])
+                    
+                    # افزودن به آمار
+                    if STATS_ENABLED:
+                        try:
+                            StatsManager.add_download_record(update.effective_user, "instagram", "audio", os.path.getsize(audio_file))
+                        except Exception as e:
+                            logger.error(f"خطا در ثبت آمار: {e}")
+                else:
+                    # آپلود ویدیو به تلگرام
+                    status_message.edit_text(STATUS_MESSAGES["uploading"])
+                    
+                    # بررسی حجم فایل
+                    file_size = os.path.getsize(file_path)
+                    if file_size > MAX_TELEGRAM_FILE_SIZE:
+                        logger.warning(f"فایل خیلی بزرگ است ({file_size} بایت)، در حال کاهش کیفیت...")
+                        status_message.edit_text(f"⚠️ فایل بسیار بزرگ است ({human_readable_size(file_size)}). در حال پردازش کیفیت پایین‌تر...")
+                        
+                        # تلاش برای تبدیل به کیفیت پایین‌تر
+                        try:
+                            lower_quality_file = convert_to_lower_quality(file_path)
+                            if lower_quality_file and os.path.exists(lower_quality_file):
+                                file_path = lower_quality_file
+                                logger.info(f"فایل با موفقیت به کیفیت پایین‌تر تبدیل شد: {file_path}")
+                            else:
+                                logger.error("تبدیل به کیفیت پایین‌تر ناموفق بود")
+                                status_message.edit_text(ERROR_MESSAGES["file_too_large"])
+                                return
+                        except Exception as e:
+                            logger.error(f"خطا در تبدیل به کیفیت پایین‌تر: {e}")
+                            status_message.edit_text(ERROR_MESSAGES["file_too_large"])
+                            return
+                    
+                    # آپلود فایل
+                    try:
+                        with open(file_path, 'rb') as video:
+                            update.effective_chat.send_video(
+                                video=video,
+                                caption=f"🎬 ویدیوی اینستاگرام | کیفیت: {quality}\n🔗 {url}",
+                                supports_streaming=True
+                            )
+                            
+                        status_message.edit_text(STATUS_MESSAGES["complete"])
+                        
+                        # افزودن به آمار
+                        if STATS_ENABLED:
+                            try:
+                                StatsManager.add_download_record(update.effective_user, "instagram", quality, os.path.getsize(file_path))
+                            except Exception as e:
+                                logger.error(f"خطا در ثبت آمار: {e}")
+                    except Exception as e:
+                        logger.error(f"خطا در آپلود ویدیو: {e}")
+                        status_message.edit_text(ERROR_MESSAGES["telegram_upload"])
+                        return
+                
+                # اضافه کردن دکمه "دانلود مجدد" به پیام کامل شده
+                keyboard = [
+                    [InlineKeyboardButton("⬇️ دانلود با کیفیت دیگر", callback_data=f"redownload_{url}")],
+                    [InlineKeyboardButton("🔍 دانلود لینک جدید", callback_data="new_download")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                status_message.edit_text(
+                    f"✅ دانلود با موفقیت انجام شد!\n\n" +
+                    f"📌 نوع: {'صوتی' if is_audio else 'ویدیویی'}\n" +
+                    (f"🎬 کیفیت: {quality}\n" if not is_audio else "") +
+                    f"⏱ زمان پردازش: {int(download_time)} ثانیه",
+                    reply_markup=reply_markup
+                )
+            except Exception as e:
+                logger.error(f"خطا در دانلود اینستاگرام با گزینه: {e}")
+                logger.error(traceback.format_exc())
+                if status_message:
+                    status_message.edit_text(ERROR_MESSAGES["generic_error"])
+        
+        def download_youtube_sync(update, context, url, quality, status_message):
+            """نسخه sync از download_youtube"""
+            try:
+                # ساخت نسخه ساده‌تر از گزینه‌های انتخاب شده
+                selected_option = {
+                    "quality": quality,
+                    "label": f"کیفیت {quality}",
+                    "format_id": "best" if quality != "audio" else "bestaudio",
+                    "format_note": "audio only" if quality == "audio" else "video"
+                }
+                download_youtube_with_option_sync(update, context, url, selected_option, status_message)
+            except Exception as e:
+                logger.error(f"خطا در دانلود یوتیوب: {e}")
+                status_message.edit_text(ERROR_MESSAGES["generic_error"])
+        
+        def download_youtube_with_option_sync(update, context, url, selected_option, status_message=None):
+            """نسخه sync از download_youtube_with_option"""
+            user_id = update.effective_user.id
+            quality = selected_option.get('quality', 'best')
+            logger.info(f"شروع دانلود یوتیوب برای کاربر {user_id} با کیفیت {quality}")
+            
+            try:
+                # اگر پیام وضعیت ارائه نشده باشد، آن را ایجاد کن
+                if status_message is None:
+                    status_message = update.callback_query.edit_message_text(
+                        STATUS_MESSAGES["processing"],
+                        reply_markup=None
+                    )
+                
+                # نوع دانلود را تعیین کن
+                is_audio = selected_option.get('format_note', '').lower() == 'audio only' or quality == 'audio'
+                
+                if is_audio:
+                    status_message.edit_text(STATUS_MESSAGES["downloading_audio"])
+                else:
+                    status_message.edit_text(STATUS_MESSAGES["downloading"])
+                
+                # دانلود را انجام بده
+                youtube_dl = YouTubeDownloader()
+                
+                # بررسی کش قبل از دانلود
+                cache_key = f"{url}_{quality}"
+                file_path = None
+                if cache_key in option_cache:
+                    file_path = option_cache[cache_key].get('file_path')
+                    if file_path and os.path.exists(file_path):
+                        logger.info(f"فایل از کش دریافت شد: {file_path}")
+                    else:
+                        # اگر فایل در کش نیست یا دیگر وجود ندارد، دانلود کن
+                        file_path = None
+                
+                if not file_path:
+                    # ایجاد و شروع تایمر برای اندازه‌گیری زمان دانلود
+                    download_timer = time.time()
+                
+                    # انتخاب روش دانلود بر اساس نوع
+                    if is_audio:
+                        # دانلود فقط صدا
+                        ydl_opts = {
+                            'format': 'bestaudio/best',
+                            'outtmpl': os.path.join(TEMP_DOWNLOAD_DIR, 'youtube', 'yt_audio_%(id)s.%(ext)s'),
+                            'postprocessors': [{
+                                'key': 'FFmpegExtractAudio',
+                                'preferredcodec': 'mp3',
+                                'preferredquality': '192',
+                            }],
+                            'cookies': YOUTUBE_COOKIE_FILE,
+                            'quiet': True,
+                            'no_warnings': True
+                        }
+                        
+                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                            info = ydl.extract_info(url, download=True)
+                            video_id = info.get('id', '')
+                            file_path = os.path.join(TEMP_DOWNLOAD_DIR, 'youtube', f'yt_audio_{video_id}.mp3')
+                    else:
+                        # دانلود ویدیو - اینجا از format_id استفاده می‌کنیم
+                        format_id = selected_option.get('format_id', '')
+                        
+                        ydl_opts = {
+                            'format': format_id if format_id else f'best[height<={quality[:-1]}]',
+                            'outtmpl': os.path.join(TEMP_DOWNLOAD_DIR, 'youtube', '%(title)s-%(id)s_video_%(resolution)s.%(ext)s'),
+                            'cookies': YOUTUBE_COOKIE_FILE,
+                            'quiet': True,
+                            'no_warnings': True
+                        }
+                        
+                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                            info = ydl.extract_info(url, download=True)
+                            file_path = ydl.prepare_filename(info)
+                            # بررسی وجود فایل با پسوندهای مختلف در صورتی که ydl پسوند را تغییر داده باشد
+                            if not os.path.exists(file_path):
+                                for ext in ['mp4', 'webm', 'mkv']:
+                                    test_path = os.path.splitext(file_path)[0] + f'.{ext}'
+                                    if os.path.exists(test_path):
+                                        file_path = test_path
+                                        break
+                    
+                    download_time = time.time() - download_timer
+                    logger.info(f"دانلود با کیفیت {quality} در {download_time:.2f} ثانیه کامل شد")
+                    
+                    # افزودن به کش
+                    option_cache[cache_key] = {
+                        'file_path': file_path,
+                        'timestamp': time.time()
+                    }
+                else:
+                    download_time = 0.1  # مقدار دلخواه برای زمان دانلود از کش
+                
+                if not file_path or not os.path.exists(file_path):
+                    logger.error(f"خطا: مسیر فایل نامعتبر است - {file_path}")
+                    status_message.edit_text(ERROR_MESSAGES["download_failed"])
+                    return
+                
+                # بررسی حجم فایل
+                file_size = os.path.getsize(file_path)
+                if file_size > MAX_TELEGRAM_FILE_SIZE and not is_audio:
+                    logger.warning(f"فایل خیلی بزرگ است ({file_size} بایت)، در حال کاهش کیفیت...")
+                    status_message.edit_text(f"⚠️ فایل بسیار بزرگ است ({human_readable_size(file_size)}). در حال پردازش کیفیت پایین‌تر...")
+                    
+                    # تلاش برای تبدیل به کیفیت پایین‌تر
+                    try:
+                        lower_quality_file = convert_to_lower_quality(file_path)
+                        if lower_quality_file and os.path.exists(lower_quality_file):
+                            file_path = lower_quality_file
+                            logger.info(f"فایل با موفقیت به کیفیت پایین‌تر تبدیل شد: {file_path}")
+                        else:
+                            logger.error("تبدیل به کیفیت پایین‌تر ناموفق بود")
+                            status_message.edit_text(ERROR_MESSAGES["file_too_large"])
+                            return
+                    except Exception as e:
+                        logger.error(f"خطا در تبدیل به کیفیت پایین‌تر: {e}")
+                        status_message.edit_text(ERROR_MESSAGES["file_too_large"])
+                        return
+                
+                # آپلود فایل به تلگرام
+                status_message.edit_text(STATUS_MESSAGES["uploading"])
+                
+                try:
+                    if is_audio:
+                        # آپلود به عنوان فایل صوتی
+                        with open(file_path, 'rb') as audio:
+                            update.effective_chat.send_audio(
+                                audio=audio,
+                                title=os.path.basename(file_path),
+                                caption=f"🎵 فایل صوتی از یوتیوب\n🔗 {url}",
+                                performer="YouTube Audio"
+                            )
+                    else:
+                        # آپلود به عنوان ویدیو
+                        with open(file_path, 'rb') as video:
+                            update.effective_chat.send_video(
+                                video=video,
+                                caption=f"🎬 ویدیوی یوتیوب | کیفیت: {quality}\n🔗 {url}",
+                                supports_streaming=True
+                            )
+                    
+                    # افزودن به آمار
+                    if STATS_ENABLED:
+                        try:
+                            StatsManager.add_download_record(update.effective_user, "youtube", "audio" if is_audio else quality, file_size)
+                        except Exception as e:
+                            logger.error(f"خطا در ثبت آمار: {e}")
+                            
+                    # اضافه کردن دکمه "دانلود مجدد" به پیام کامل شده
+                    keyboard = [
+                        [InlineKeyboardButton("⬇️ دانلود با کیفیت دیگر", callback_data=f"redownload_{url}")]
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    
+                    status_message.edit_text(
+                        f"✅ دانلود با موفقیت انجام شد!\n\n" +
+                        f"📌 نوع: {'صوتی' if is_audio else 'ویدیویی'}\n" +
+                        (f"🎬 کیفیت: {quality}\n" if not is_audio else "") +
+                        f"⏱ زمان پردازش: {int(download_time)} ثانیه",
+                        reply_markup=reply_markup
+                    )
+                except Exception as e:
+                    logger.error(f"خطا در آپلود فایل: {e}")
+                    status_message.edit_text(ERROR_MESSAGES["telegram_upload"])
+            except Exception as e:
+                logger.error(f"خطا در دانلود یوتیوب با گزینه: {e}")
+                logger.error(traceback.format_exc())
+                if status_message:
+                    status_message.edit_text(ERROR_MESSAGES["generic_error"])
+            
         # ثبت هندلرهای کالبک دکمه‌ها
         from telegram_handlers import handle_menu_button
         
         # هندلر کالبک دکمه‌های دانلود (برای دکمه‌های دانلود فایل)
         # این هندلر باید اول ثبت شود زیرا اولویت بیشتری دارد
-        app.add_handler(CallbackQueryHandler(handle_download_option, pattern="^dl_"))
+        app.add_handler(CallbackQueryHandler(handle_download_option_sync, pattern="^dl_"))
         
         # هندلر کالبک دکمه‌های منو (برای دکمه‌های بازگشت و راهنما)
         app.add_handler(CallbackQueryHandler(handle_menu_button, pattern="^(back_to_start|help|about|help_video|help_audio|help_bulk|mydownloads)$"))
