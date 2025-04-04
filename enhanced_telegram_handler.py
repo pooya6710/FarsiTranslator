@@ -14,7 +14,7 @@ import asyncio
 import threading
 from typing import Dict, List, Optional, Union, Any, Callable
 from telegram import Update, InputFile, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
+from telegram.ext import CallbackContext
 from telegram.constants import ParseMode
 
 # واردسازی ماژول‌های بهینه‌سازی
@@ -252,7 +252,7 @@ class TelegramUIEnhancer:
 
 <i>لطفاً لینک دیگری را امتحان کنید یا بعداً دوباره تلاش کنید.</i>"""
 
-    async def update_progress_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE, 
+    async def update_progress_message(self, update: Update, context: CallbackContext, 
                                      message_id: int, status: Dict[str, Any]) -> None:
         """
         به‌روزرسانی پیام پیشرفت دانلود
@@ -374,7 +374,7 @@ def configure_ui_enhancements(application) -> TelegramUIEnhancer:
     return enhancer
 
 # فانکشن کمکی برای دریافت بهبود‌دهنده رابط کاربری از کانتکست
-def get_ui_enhancer(context: ContextTypes.DEFAULT_TYPE) -> TelegramUIEnhancer:
+def get_ui_enhancer(context: CallbackContext) -> TelegramUIEnhancer:
     """
     دریافت نمونه بهبود‌دهنده رابط کاربری از کانتکست
     

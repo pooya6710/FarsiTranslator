@@ -446,13 +446,23 @@ def make_progress_bar(percent, length=20):
 
 def register_handlers(application):
     """ثبت هندلرهای دستورات در اپلیکیشن تلگرام"""
-    from telegram.ext import CommandHandler, MessageHandler, filters
+    import sys
+    
+    # بررسی نسخه کتابخانه python-telegram-bot
+    try:
+        # برای نسخه 13
+        from telegram.ext import CommandHandler, MessageHandler, Filters
+        status_filter = Filters.regex(r'^/status_\w+')
+    except ImportError:
+        # برای نسخه 20
+        from telegram.ext import CommandHandler, MessageHandler, filters
+        status_filter = filters.regex(r'^/status_\w+')
     
     # هندلر دستور دانلود چندگانه
     application.add_handler(CommandHandler("bulkdownload", handle_bulk_download))
     
     # هندلر دستور بررسی وضعیت با الگوی /status_{batch_id}
-    application.add_handler(MessageHandler(filters.Regex(r'^/status_\w+'), handle_batch_status))
+    application.add_handler(MessageHandler(status_filter, handle_batch_status))
     
     # هندلر دستور نمایش همه دانلودها
     application.add_handler(CommandHandler("mydownloads", handle_list_downloads))

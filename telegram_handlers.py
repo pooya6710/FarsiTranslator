@@ -9,12 +9,12 @@ from typing import Dict, List, Any, Optional
 import traceback
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
+from telegram.ext import CallbackContext
 
 # تنظیم لاگر
 logger = logging.getLogger(__name__)
 
-async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_menu_button(update: Update, context: CallbackContext) -> None:
     """
     هندلر دکمه‌های منو
     
@@ -62,7 +62,7 @@ async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     else:
         logger.warning(f"دکمه نامشخص: {callback_data}")
 
-async def handle_back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_back_to_start(update: Update, context: CallbackContext) -> None:
     """
     برگرداندن کاربر به منوی اصلی
     
@@ -94,7 +94,7 @@ async def handle_back_to_start(update: Update, context: ContextTypes.DEFAULT_TYP
         parse_mode='HTML'
     )
 
-async def handle_help_section(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_help_section(update: Update, context: CallbackContext) -> None:
     """
     نمایش صفحه راهنما
     
@@ -130,7 +130,7 @@ async def handle_help_section(update: Update, context: ContextTypes.DEFAULT_TYPE
         parse_mode='HTML'
     )
 
-async def handle_about_section(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_about_section(update: Update, context: CallbackContext) -> None:
     """
     نمایش صفحه درباره ما
     
@@ -158,7 +158,7 @@ async def handle_about_section(update: Update, context: ContextTypes.DEFAULT_TYP
         parse_mode='HTML'
     )
 
-async def handle_video_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_video_help(update: Update, context: CallbackContext) -> None:
     """
     نمایش راهنمای کیفیت‌های ویدیو
     
@@ -201,7 +201,7 @@ async def handle_video_help(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         parse_mode='HTML'
     )
 
-async def handle_audio_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_audio_help(update: Update, context: CallbackContext) -> None:
     """
     نمایش راهنمای دانلود صوتی
     
@@ -244,7 +244,7 @@ async def handle_audio_help(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         parse_mode='HTML'
     )
 
-async def handle_bulk_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_bulk_help(update: Update, context: CallbackContext) -> None:
     """
     نمایش راهنمای دانلود گروهی
     
@@ -297,7 +297,7 @@ https://youtube.com/shorts/XYZ456</code>
         parse_mode='HTML'
     )
 
-async def handle_my_downloads(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_my_downloads(update: Update, context: CallbackContext) -> None:
     """
     نمایش دانلودهای کاربر
     
