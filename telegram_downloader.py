@@ -4635,10 +4635,16 @@ async def main():
                                 from audio_processing import extract_audio
                                 file_path = extract_audio(best_file_path)
                                 logger.info(f"صدا استخراج شد: {file_path}")
-                            # اگر 1080p خواسته باشد (بهترین کیفیت) نیازی به تبدیل نیست
-                            elif quality == '1080p' or quality == 'best':
+                            # اگر best خواسته باشد، همان فایل اصلی را برگردان
+                            elif quality == 'best':
                                 file_path = best_file_path
-                                logger.info(f"بهترین کیفیت انتخاب شده، تبدیل لازم نیست")
+                                logger.info(f"کیفیت اصلی انتخاب شده، تبدیل لازم نیست")
+                            # اجبار به تبدیل کیفیت حتی برای 1080p
+                            elif quality == '1080p':
+                                status_message.edit_text(f"⏳ ویدیو دانلود شد، در حال تبدیل به کیفیت {quality}...")
+                                from telegram_fixes import convert_video_quality
+                                file_path = convert_video_quality(best_file_path, quality)
+                                logger.info(f"ویدیو با موفقیت به کیفیت {quality} تبدیل شد: {file_path}")
                             else:
                                 # تبدیل به کیفیت درخواست شده
                                 status_message.edit_text(f"⏳ ویدیو دانلود شد، در حال تبدیل به کیفیت {quality}...")
