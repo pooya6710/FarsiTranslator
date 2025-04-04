@@ -21,20 +21,56 @@ logger = logging.getLogger(__name__)
 
 def find_site_packages():
     """پیدا کردن مسیر site-packages پایتون"""
+    # اول در مسیرهای استاندارد جستجو کنیم
     for path in sys.path:
-        if path.endswith('site-packages'):
+        if path.endswith('site-packages') or path.endswith('pythonlibs/lib/python3.11/site-packages'):
             return path
+            
+    # اگر پیدا نشد، در مسیرهای خاص Replit بررسی کنیم
+    replit_paths = [
+        '/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages',
+        '/nix/store/ii5bys31iv4q48wbsxp4g8fdnlcw5y5f-python3-3.11.0/lib/python3.11/site-packages',
+        '/home/runner/.local/lib/python3.11/site-packages'
+    ]
+    
+    for path in replit_paths:
+        if os.path.exists(path):
+            return path
+            
     return None
 
 def find_ytdlp_path():
     """پیدا کردن مسیر نصب yt-dlp"""
+    # روش 1: از مسیر site-packages پیدا کردن
     site_packages = find_site_packages()
-    if not site_packages:
-        return None
+    if site_packages:
+        ytdlp_path = os.path.join(site_packages, 'yt_dlp')
+        if os.path.exists(ytdlp_path):
+            return ytdlp_path
+            
+    # روش 2: با استفاده از سیستم ماژول
+    try:
+        import yt_dlp
+        module_path = os.path.dirname(yt_dlp.__file__)
+        if os.path.exists(module_path):
+            logger.info(f"مسیر yt-dlp با استفاده از سیستم ماژول پیدا شد: {module_path}")
+            return module_path
+    except ImportError:
+        pass
     
-    ytdlp_path = os.path.join(site_packages, 'yt_dlp')
-    if os.path.exists(ytdlp_path):
-        return ytdlp_path
+    # روش 3: از مسیرهای خاص Replit بررسی کنیم
+    replit_ytdlp_paths = [
+        '/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/yt_dlp',
+        '/nix/store/ii5bys31iv4q48wbsxp4g8fdnlcw5y5f-python3-3.11.0/lib/python3.11/site-packages/yt_dlp',
+        '/home/runner/.local/lib/python3.11/site-packages/yt_dlp'
+    ]
+    
+    for path in replit_ytdlp_paths:
+        if os.path.exists(path):
+            logger.info(f"مسیر yt-dlp در مسیر خاص Replit پیدا شد: {path}")
+            return path
+            
+    logger.error("مسیر yt-dlp پیدا نشد")
     return None
 
 def create_clean_ytdlp():
@@ -147,7 +183,7 @@ def cleanup_yt_dlp_temp_files():
         logger.error(f"خطا در پاکسازی فایل‌های موقت: {e}")
         return False
 
-def main():
+def clean_ytdlp_installation():
     """تابع اصلی برای اجرای پچ"""
     logger.info("در حال آغاز فرآیند پچ کردن yt-dlp...")
     
@@ -168,6 +204,10 @@ def main():
     logger.info("فرآیند پچ کردن yt-dlp با موفقیت انجام شد!")
     return True
 
+def cleanup_temp_files():
+    """تابع خارجی برای پاکسازی فایل‌های موقت"""
+    return cleanup_yt_dlp_temp_files()
+
 if __name__ == "__main__":
-    success = main()
+    success = clean_ytdlp_installation()
     sys.exit(0 if success else 1)
