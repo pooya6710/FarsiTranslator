@@ -1,103 +1,31 @@
-# ربات تلگرام دانلود ویدیو
+# Telegram Bot
 
-این ربات تلگرام به کاربران امکان دانلود ویدیو از یوتیوب و اینستاگرام با کیفیت‌های مختلف و همچنین استخراج صدا را می‌دهد.
+A simple Python-based Telegram bot with basic command handling functionality.
 
-## ویژگی‌ها
+## Features
 
-- پشتیبانی از دانلود ویدیو از یوتیوب و اینستاگرام
-- تبدیل به کیفیت‌های مختلف ویدیو (1080p, 720p, 480p, 360p, 240p)
-- استخراج صدا به فرمت MP3
-- دانلود موازی چندین لینک با سرعت بالا (تا 15 دانلود همزمان)
-- بهینه‌سازی شده برای عملکرد حداکثری با استفاده از aria2c و ThreadPoolExecutor
-- پشتیبانی از تنظیمات پیشرفته FFmpeg برای بهترین کیفیت خروجی
+- Responds to basic commands (`/start`, `/help`, `/about`)
+- Error handling for connection issues
+- Logging of bot activities
 
-## نحوه نصب و اجرا
+## Prerequisites
 
-### پیش‌نیازها
+- Python 3.7+
+- python-telegram-bot library
+- python-dotenv library
 
-- Python 3.10 یا بالاتر
-- ffmpeg
-- توکن ربات تلگرام
+## Configuration
 
-### نصب در محیط محلی
+1. Clone this repository
+2. Copy `.env.example` to `.env`
+3. Replace the placeholder in `.env` with your actual Telegram bot token:
+   ```
+   TELEGRAM_BOT_TOKEN=your_bot_token_here
+   ```
 
-1. کلون کردن مخزن:
-```
-git clone https://github.com/your-username/telegram-video-downloader.git
-cd telegram-video-downloader
-```
+## Running the Bot
 
-2. نصب وابستگی‌ها:
-```
-pip install -r requirements.txt
-```
+Run the bot using:
 
-3. ایجاد فایل `.env` و تنظیم توکن ربات تلگرام:
-```
-TELEGRAM_BOT_TOKEN=your_token_here
-```
-
-4. اجرای ربات:
-```
-python telegram_downloader.py
-```
-
-### راه‌اندازی در Railway
-
-#### روش 1: استفاده از Nixpacks (توصیه شده)
-
-1. ثبت‌نام در [Railway](https://railway.app/) و ایجاد حساب کاربری
-2. ایجاد پروژه جدید و انتخاب "Deploy from GitHub"
-3. انتخاب مخزن گیت‌هاب خود که حاوی کد ربات است
-4. مطمئن شوید فایل‌های زیر در ریشه پروژه وجود دارند:
-   - `railway.toml` (برای تنظیمات nixpacks و نصب ffmpeg)
-   - `Procfile` (برای تعیین دستور اجرا)
-   - `requirements.txt` (برای نصب وابستگی‌های پایتون)
-5. در بخش "Variables" داشبورد Railway، متغیر محیطی زیر را اضافه کنید:
-   - نام: `TELEGRAM_BOT_TOKEN`
-   - مقدار: توکن ربات تلگرام شما
-6. دکمه "Deploy" را بزنید تا پروژه به صورت خودکار دیپلوی شود
-7. پس از دیپلوی موفق، لاگ‌ها را بررسی کنید تا از اجرای صحیح ربات اطمینان حاصل کنید
-
-#### روش 2: استفاده از Docker
-
-1. ثبت‌نام در [Railway](https://railway.app/) و ایجاد حساب کاربری
-2. ایجاد پروژه جدید و انتخاب "Deploy from GitHub"
-3. انتخاب مخزن گیت‌هاب خود که حاوی کد ربات است
-4. مطمئن شوید فایل `Dockerfile` در ریشه پروژه وجود دارد
-5. در بخش "Variables" داشبورد Railway، متغیر محیطی زیر را اضافه کنید:
-   - نام: `TELEGRAM_BOT_TOKEN`
-   - مقدار: توکن ربات تلگرام شما
-6. در تنظیمات پیشرفته، روش دیپلوی را روی "Docker" تنظیم کنید
-7. دکمه "Deploy" را بزنید تا پروژه به صورت خودکار دیپلوی شود
-
-## نکات مهم راه‌اندازی در Railway
-
-- **متغیرهای محیطی**: حتماً متغیر محیطی `TELEGRAM_BOT_TOKEN` را در داشبورد Railway تنظیم کنید و نه در فایل‌های محلی. 
-- **دسترسی به فایل‌های دانلودی**: در محیط Railway، فایل‌های دانلود شده در فضای موقت ذخیره می‌شوند و پس از هر دیپلوی جدید پاک می‌شوند.
-- **مشکلات احتمالی**: در صورت مواجهه با خطای "Invalid Key-Value Pair"، مطمئن شوید که در فایل‌های `railway.toml` و `Dockerfile` کامنت‌های مربوط به متغیرهای محیطی را حذف کرده‌اید.
-- **لاگ‌ها**: برای عیب‌یابی، لاگ‌های Railway را بررسی کنید. این لاگ‌ها در بخش "Deployments" داشبورد Railway قابل مشاهده هستند.
-
-## دستورات ربات
-
-- `/start` - شروع کار با ربات و دریافت راهنمایی
-- `/help` - نمایش راهنمای ربات
-- `/youtube URL` - دانلود ویدیو از یوتیوب
-- `/instagram URL` - دانلود ویدیو از اینستاگرام
-- `/audio URL` - استخراج صدا از ویدیوی یوتیوب یا اینستاگرام
-- `/bulkdownload URL1 URL2 ...` - دانلود چند لینک به صورت همزمان (در خطوط جداگانه)
-- `/status_{batch_id}` - بررسی وضعیت یک دانلود گروهی
-- `/mydownloads` - نمایش همه دانلودهای درخواستی کاربر
-
-## عیب‌یابی
-
-اگر با مشکلات زیر مواجه شدید، راه‌حل‌های پیشنهادی را امتحان کنید:
-
-1. **مشکل FFmpeg**: اطمینان حاصل کنید که FFmpeg به درستی نصب شده و مسیر آن در دسترس است.
-2. **خطای دسترسی به فایل**: مطمئن شوید دایرکتوری `downloads` وجود دارد و قابل نوشتن است.
-3. **کندی دانلود**: تنظیمات yt-dlp را در فایل `telegram_fixes.py` بهینه کنید.
-4. **خطای توکن تلگرام**: مطمئن شوید که متغیر محیطی TELEGRAM_BOT_TOKEN به درستی تنظیم شده است.
-
-## مجوز
-
-MIT License
+```bash
+python main.py
