@@ -189,7 +189,7 @@ recent_button_clicks = {}
 
 # بارگذاری ماژول اصلاحی اینستاگرام
 try:
-    from instagram_fix_patch_lite import download_instagram_content, patch_ytdlp_for_instagram
+    from enhanced_instagram_downloader import download_instagram_content, patch_ytdlp_for_instagram
     # اعمال پچ هنگام شروع برنامه
     if patch_ytdlp_for_instagram():
         logger.info("پچ yt-dlp برای دانلود اینستاگرام با موفقیت اعمال شد")
@@ -198,7 +198,7 @@ try:
         logger.warning("اعمال پچ yt-dlp برای دانلود اینستاگرام ناموفق بود")
         INSTAGRAM_FIX_PATCH_AVAILABLE = False
 except ImportError:
-    logger.warning("ماژول instagram_fix_patch_lite یافت نشد، استفاده از روش‌های معمولی دانلود")
+    logger.warning("ماژول enhanced_instagram_downloader یافت نشد، استفاده از روش‌های معمولی دانلود")
     INSTAGRAM_FIX_PATCH_AVAILABLE = False
 
 """
@@ -844,7 +844,7 @@ class InstagramDownloader:
             # استفاده از پچ اختصاصی اگر در دسترس باشد
             if 'INSTAGRAM_FIX_PATCH_AVAILABLE' in globals() and INSTAGRAM_FIX_PATCH_AVAILABLE:
                 try:
-                    from instagram_fix_patch_lite import download_instagram_content
+                    from enhanced_instagram_downloader import download_instagram_content
                     logger.info(f"استفاده از پچ اختصاصی برای دانلود اینستاگرام: {url}, کیفیت: {quality}")
                     
                     # اجرای تابع دانلود بصورت همزمان
