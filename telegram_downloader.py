@@ -187,6 +187,20 @@ option_cache = {}
 # این برای کمک به حل مشکل "لینک منقضی شده" استفاده می‌شود
 recent_button_clicks = {}
 
+# بارگذاری ماژول اصلاحی اینستاگرام
+try:
+    from instagram_fix_patch_lite import download_instagram_content, patch_ytdlp_for_instagram
+    # اعمال پچ هنگام شروع برنامه
+    if patch_ytdlp_for_instagram():
+        logger.info("پچ yt-dlp برای دانلود اینستاگرام با موفقیت اعمال شد")
+        INSTAGRAM_FIX_PATCH_AVAILABLE = True
+    else:
+        logger.warning("اعمال پچ yt-dlp برای دانلود اینستاگرام ناموفق بود")
+        INSTAGRAM_FIX_PATCH_AVAILABLE = False
+except ImportError:
+    logger.warning("ماژول instagram_fix_patch_lite یافت نشد، استفاده از روش‌های معمولی دانلود")
+    INSTAGRAM_FIX_PATCH_AVAILABLE = False
+
 """
 بخش 1: تنظیمات و ثابت‌ها
 """
@@ -827,21 +841,46 @@ class InstagramDownloader:
                 
             logger.info(f"دانلود پست اینستاگرام با کد کوتاه: {shortcode}")
             
-            # روش‌های مختلف دانلود
-            # روش اول: استفاده از instaloader
-            result = await self._download_with_instaloader(url, shortcode, quality)
-            if result:
-                return result
-                
-            # روش دوم: استفاده از yt-dlp
-            logger.info(f"تلاش برای دانلود با روش دوم (yt-dlp): {url}")
+            # استفاده از پچ اختصاصی اگر در دسترس باشد
+            if 'INSTAGRAM_FIX_PATCH_AVAILABLE' in globals() and INSTAGRAM_FIX_PATCH_AVAILABLE:
+                try:
+                    from instagram_fix_patch_lite import download_instagram_content
+                    logger.info(f"استفاده از پچ اختصاصی برای دانلود اینستاگرام: {url}, کیفیت: {quality}")
+                    
+                    # اجرای تابع دانلود بصورت همزمان
+                    loop = asyncio.get_event_loop()
+                    downloaded_file = await loop.run_in_executor(
+                        None,
+                        lambda: download_instagram_content(url, TEMP_DOWNLOAD_DIR, quality)
+                    )
+                    
+                    if downloaded_file and os.path.exists(downloaded_file) and os.path.getsize(downloaded_file) > 0:
+                        logger.info(f"دانلود اینستاگرام با پچ اختصاصی موفقیت‌آمیز بود: {downloaded_file}")
+                        # افزودن به کش با کیفیت
+                        cache_key = f"{url}_{quality}"
+                        add_to_cache(cache_key, downloaded_file)
+                        return downloaded_file
+                    else:
+                        logger.warning("دانلود با پچ اختصاصی ناموفق بود، استفاده از روش‌های دیگر")
+                except Exception as patch_error:
+                    logger.error(f"خطا در دانلود با پچ اختصاصی: {patch_error}")
+            
+            # تغییر ترتیب روش‌های دانلود - ابتدا با yt-dlp که نیاز به لاگین ندارد
+            # روش اول: استفاده از yt-dlp (بدون نیاز به لاگین)
+            logger.info(f"تلاش برای دانلود با روش اول (yt-dlp): {url}")
             result = await self._download_with_ytdlp(url, shortcode, quality)
             if result:
                 return result
                 
-            # روش سوم: استفاده از درخواست مستقیم
-            logger.info(f"تلاش برای دانلود با روش سوم (درخواست مستقیم): {url}")
+            # روش دوم: استفاده از درخواست مستقیم
+            logger.info(f"تلاش برای دانلود با روش دوم (درخواست مستقیم): {url}")
             result = await self._download_with_direct_request(url, shortcode, quality)
+            if result:
+                return result
+                
+            # روش سوم: استفاده از instaloader (ممکن است نیاز به لاگین داشته باشد)
+            logger.info(f"تلاش برای دانلود با روش سوم (instaloader): {url}")
+            result = await self._download_with_instaloader(url, shortcode, quality)
             if result:
                 return result
                 
@@ -935,7 +974,7 @@ class InstagramDownloader:
             return None
             
     async def _download_with_ytdlp(self, url: str, shortcode: str, quality: str) -> Optional[str]:
-        """روش دانلود با استفاده از yt-dlp"""
+        """روش دانلود با استفاده از yt-dlp با بهینه‌سازی برای اینستاگرام"""
         try:
             # تنظیمات yt-dlp
             ext = 'mp4'
@@ -960,69 +999,94 @@ class InstagramDownloader:
                 }]
                 logger.info(f"دانلود صوت از اینستاگرام: {url[:30]}...")
             else:
-                # استفاده از تنظیمات بهبود یافته برای اینستاگرام
+                # استفاده از تنظیمات بهبود یافته برای اینستاگرام - با فرمت جدید و بهینه
+                # اینستاگرام گاهی محدودیت‌های خاصی روی API اعمال می‌کند، پس باید انعطاف‌پذیر باشیم
                 if quality == '240p':
                     # کیفیت خیلی پایین - 240p
-                    format_spec = 'best[height<=240]/worst[height>=240]'
+                    format_spec = 'worstvideo+bestaudio/worst[height>=240]/worst'
                 elif quality == '360p':
-                    # کیفیت پایین - 360p
-                    format_spec = 'best[height<=360][height>240]/best[height<=360]'
+                    # کیفیت پایین - 360p - با اولویت بندی جدید
+                    format_spec = 'best[height<=360]/bestvideo[height<=360]+bestaudio/best'
                 elif quality == '480p':
-                    # کیفیت متوسط - 480p
-                    format_spec = 'best[height<=480][height>360]/best[height<=480]'
+                    # کیفیت متوسط - 480p - با اولویت بندی جدید
+                    format_spec = 'best[height<=480]/bestvideo[height<=480]+bestaudio/best'
                 elif quality == '720p':
-                    # کیفیت HD - 720p
-                    format_spec = 'best[height=720]/best[height<=720][height>480]/best[height<=720]'
+                    # کیفیت HD - 720p - با اولویت بندی جدید 
+                    format_spec = 'best[height<=720]/bestvideo[height<=720]+bestaudio/best'
                 elif quality == '1080p':
-                    # کیفیت Full HD - 1080p
-                    format_spec = 'best[height=1080]/best[height>=1080]/best'
+                    # کیفیت Full HD - 1080p - با حالت‌های متنوع جایگزین
+                    format_spec = 'best[height<=1080]/bestvideo[height<=1080]+bestaudio/best'
                 else:
-                    # پیش فرض - بهترین کیفیت موجود
+                    # پیش فرض - بهترین کیفیت موجود - ساده‌ترین حالت
                     format_spec = 'best'
                 
+                # هیچ پردازش اضافی در این مرحله نیاز نیست
                 postprocessors = []
                 
-            logger.info(f"استفاده از فرمت {format_spec} برای دانلود اینستاگرام با کیفیت {quality}")
+            logger.info(f"استفاده از فرمت جدید {format_spec} برای دانلود اینستاگرام با کیفیت {quality}")
             
-            # تنظیمات دانلود
+            # تنظیمات دانلود بهینه شده برای اینستاگرام
             ydl_opts = {
                 'format': format_spec,
                 'outtmpl': final_path if not is_audio_download else final_path.replace('.mp3', '.%(ext)s'),
                 'quiet': True,
                 'no_warnings': True,
-                'user_agent': USER_AGENT,
+                # یک User-Agent جدید و معتبر برای دور زدن محدودیت‌های اینستاگرام
+                'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
                 'socket_timeout': 30,
-                'retries': 10,
-                'http_headers': HTTP_HEADERS,
+                'retries': 15,  # افزایش تعداد تلاش‌ها
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Origin': 'https://www.instagram.com',
+                    'Referer': 'https://www.instagram.com/',
+                    'DNT': '1',  # Do Not Track
+                    'Connection': 'keep-alive'
+                },
                 'postprocessors': postprocessors,
                 'writeinfojson': False,
                 'writethumbnail': False,
                 'noplaylist': True,
+                'extractor_retries': 5,  # افزایش تعداد تلاش‌ها برای استخراج اطلاعات
+                'skip_download_archive': True,  # عدم بررسی آرشیو دانلود
                 'ffmpeg_location': '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
                 'prefer_ffmpeg': True,
+                # استفاده از کوکی‌های رندوم برای جلوگیری از محدودیت نرخ درخواست
+                'cookiefile': None,
+                'cookiesfrombrowser': None,
+                # تنظیمات پیشرفته‌تر
+                'sleep_interval': 1,  # فاصله زمانی بین درخواست‌ها
+                'max_sleep_interval': 5,  # حداکثر فاصله زمانی
+                'force_generic_extractor': False,  # استفاده از استخراج‌کننده تخصصی
             }
             
-            # اجرا در thread pool
+            # اجرا در thread pool با کنترل خطا
             loop = asyncio.get_event_loop()
             download_success = False
             
+            # روش 1: استفاده اصلی با تنظیمات بهینه
             try:
+                logger.info(f"شروع دانلود اینستاگرام با yt-dlp و تنظیمات پیشرفته: {url[:30]}")
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     await loop.run_in_executor(None, ydl.download, [url])
                     
                 # بررسی موفقیت دانلود
                 if os.path.exists(final_path) and os.path.getsize(final_path) > 0:
                     download_success = True
+                    logger.info(f"دانلود با روش اصلی موفق: {os.path.getsize(final_path)} بایت")
             except Exception as e:
                 logger.warning(f"خطا در دانلود اینستاگرام با yt-dlp: {e}, تلاش با روش جایگزین...")
             
-            # اگر دانلود با yt-dlp موفق نبود، از روش جایگزین استفاده کنیم
+            # روش 2: استفاده از تنظیمات جایگزین با User-Agent متفاوت
             if not download_success:
                 try:
-                    # روش جایگزین: استفاده از 'best' فرمت بدون محدودیت ارتفاع
+                    logger.info("تلاش با روش جایگزین اول: User-Agent دیگر")
                     fallback_ydl_opts = ydl_opts.copy()
-                    fallback_ydl_opts['format'] = 'best'
-                    logger.info("تلاش مجدد با فرمت 'best'")
+                    fallback_ydl_opts['format'] = 'best'  # ساده‌ترین فرمت
+                    # تغییر User-Agent
+                    fallback_ydl_opts['user_agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                    fallback_ydl_opts['http_headers']['User-Agent'] = fallback_ydl_opts['user_agent']
                     
                     with yt_dlp.YoutubeDL(fallback_ydl_opts) as ydl:
                         await loop.run_in_executor(None, ydl.download, [url])
@@ -1030,24 +1094,67 @@ class InstagramDownloader:
                     # بررسی موفقیت دانلود با روش جایگزین
                     if os.path.exists(final_path) and os.path.getsize(final_path) > 0:
                         download_success = True
-                        logger.info("دانلود با روش جایگزین موفق بود")
-                        
-                        # اگر کیفیت خاصی درخواست شده، سعی کنیم ویدیو را با ffmpeg تبدیل کنیم
-                        if not is_audio_download and quality != 'best':
-                            try:
-                                quality_number = int(quality.replace('p', ''))
-                                from telegram_fixes import convert_video_quality
-                                converted_file = convert_video_quality(final_path, quality_number)
-                                if converted_file and os.path.exists(converted_file):
-                                    logger.info(f"ویدیو با موفقیت به کیفیت {quality} تبدیل شد: {converted_file}")
-                                    final_path = converted_file
-                            except Exception as conv_error:
-                                logger.error(f"خطا در تبدیل کیفیت ویدیو: {conv_error}")
+                        logger.info(f"دانلود با روش جایگزین اول موفق: {os.path.getsize(final_path)} بایت")
                 except Exception as fallback_error:
-                    logger.error(f"خطا در دانلود با روش جایگزین: {fallback_error}")
+                    logger.warning(f"خطا در روش جایگزین اول: {fallback_error}")
             
-            # نتیجه نهایی
+            # روش 3: استفاده از حالت اندروید با تنظیمات مینیمال
+            if not download_success:
+                try:
+                    logger.info("تلاش با روش جایگزین دوم: حالت اندروید")
+                    android_ydl_opts = {
+                        'format': 'best',
+                        'outtmpl': final_path,
+                        'quiet': True,
+                        'user_agent': 'Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+                        'http_headers': {
+                            'User-Agent': 'Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+                            'Accept': '*/*',
+                            'Origin': 'https://www.instagram.com',
+                            'Referer': 'https://www.instagram.com/',
+                        },
+                        'ffmpeg_location': '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
+                    }
+                    
+                    with yt_dlp.YoutubeDL(android_ydl_opts) as ydl:
+                        await loop.run_in_executor(None, ydl.download, [url])
+                    
+                    # بررسی موفقیت دانلود با روش جایگزین
+                    if os.path.exists(final_path) and os.path.getsize(final_path) > 0:
+                        download_success = True
+                        logger.info(f"دانلود با روش جایگزین دوم موفق: {os.path.getsize(final_path)} بایت")
+                except Exception as android_error:
+                    logger.warning(f"خطا در روش جایگزین دوم: {android_error}")
+                        
+            # پردازش فایل دانلود شده برای تبدیل کیفیت اگر موفق بودیم
             if download_success or (os.path.exists(final_path) and os.path.getsize(final_path) > 0):
+                # اگر کیفیت خاصی درخواست شده و فایل ویدیویی است، تبدیل کیفیت کنیم
+                if not is_audio_download and quality != 'best':
+                    try:
+                        from telegram_fixes import convert_video_quality
+                        logger.info(f"تبدیل کیفیت ویدیو به {quality}...")
+                        converted_path = convert_video_quality(final_path, quality, is_audio_request=False)
+                        if converted_path and os.path.exists(converted_path):
+                            logger.info(f"تبدیل کیفیت ویدیو به {quality} موفقیت‌آمیز بود: {converted_path}")
+                            # جایگزینی فایل نهایی
+                            final_path = converted_path
+                    except Exception as e:
+                        logger.error(f"خطا در تبدیل کیفیت ویدیو: {str(e)}")
+                
+                # بررسی فایل صوتی 
+                if is_audio_download:
+                    # بررسی اگر نیاز به تبدیل به صوت است
+                    if not final_path.lower().endswith(('.mp3', '.m4a', '.aac', '.wav')):
+                        try:
+                            from audio_processing import extract_audio
+                            logger.info(f"تبدیل ویدیو به صوت: {final_path}")
+                            audio_path = extract_audio(final_path, 'mp3', '192k')
+                            if audio_path and os.path.exists(audio_path):
+                                final_path = audio_path
+                                logger.info(f"تبدیل ویدیو به صوت موفق: {audio_path}")
+                        except Exception as audio_error:
+                            logger.error(f"خطا در تبدیل به صوت: {audio_error}")
+                
                 # افزودن به کش با کیفیت
                 cache_key = f"{url}_{quality}"
                 add_to_cache(cache_key, final_path)
@@ -1062,79 +1169,229 @@ class InstagramDownloader:
             return None
             
     async def _download_with_direct_request(self, url: str, shortcode: str, quality: str) -> Optional[str]:
-        """روش دانلود با استفاده از درخواست مستقیم"""
+        """روش دانلود با استفاده از درخواست مستقیم - نسخه بهبود یافته"""
         try:
             # ابتدا باید URL مستقیم ویدیو را پیدا کنیم
-            try:
-                # روش اول: استفاده از instaloader برای یافتن URL مستقیم
-                post = instaloader.Post.from_shortcode(self.loader.context, shortcode)
-                if hasattr(post, 'video_url') and post.video_url:
-                    video_url = post.video_url
-                else:
-                    raise ValueError("URL ویدیو یافت نشد")
-            except Exception as e1:
-                logger.warning(f"خطا در یافتن URL مستقیم با instaloader: {e1}")
-                # روش دوم: تلاش با پارس کردن صفحه
-                try:
-                    headers = {
-                        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Mobile/15E148 Safari/604.1',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml',
-                        'Accept-Language': 'en-US,en;q=0.9',
-                        'Referer': 'https://www.instagram.com/'
-                    }
-                    response = requests.get(url, headers=headers, timeout=15)
-                    
-                    # الگوی URL ویدیو
-                    video_pattern = r'"video_url":"([^"]+)"'
-                    match = re.search(video_pattern, response.text)
-                    
-                    if match:
-                        video_url = match.group(1).replace('\\u0026', '&')
-                    else:
-                        logger.warning("URL ویدیو در صفحه یافت نشد")
-                        return None
-                except Exception as e2:
-                    logger.warning(f"خطا در یافتن URL مستقیم با پارس کردن صفحه: {e2}")
-                    return None
+            video_url = None
             
+            # روش 1: استفاده از yt-dlp برای استخراج URL مستقیم (بدون دانلود)
+            try:
+                logger.info(f"تلاش برای استخراج URL مستقیم با yt-dlp: {url}")
+                ydl_opts = {
+                    'format': 'best',
+                    'quiet': True,
+                    'no_warnings': True,
+                    'skip_download': True,  # فقط اطلاعات را استخراج کن، دانلود نکن
+                    'dump_single_json': True,
+                    'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
+                    'http_headers': {
+                        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
+                        'Accept': '*/*',
+                        'Accept-Language': 'en-US,en;q=0.5',
+                        'Origin': 'https://www.instagram.com',
+                        'Referer': 'https://www.instagram.com/',
+                    }
+                }
+                
+                # استفاده از فانکشن extract_info برای دریافت اطلاعات بدون دانلود
+                loop = asyncio.get_event_loop()
+                
+                def get_video_info():
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        return ydl.extract_info(url, download=False)
+                
+                info = await loop.run_in_executor(None, get_video_info)
+                
+                # بررسی اطلاعات استخراج شده
+                if info and 'url' in info:
+                    video_url = info['url']
+                    logger.info(f"URL مستقیم با yt-dlp پیدا شد")
+                elif info and 'formats' in info and info['formats']:
+                    # انتخاب بهترین فرمت
+                    best_format = None
+                    for fmt in info['formats']:
+                        if fmt.get('vcodec', 'none') != 'none' and fmt.get('acodec', 'none') != 'none':
+                            if best_format is None or fmt.get('height', 0) > best_format.get('height', 0):
+                                best_format = fmt
+                    
+                    if best_format and 'url' in best_format:
+                        video_url = best_format['url']
+                        logger.info(f"URL مستقیم از فرمت‌های موجود انتخاب شد: {best_format.get('format_id', 'نامشخص')}")
+            except Exception as e_ytdlp:
+                logger.warning(f"خطا در استخراج URL مستقیم با yt-dlp: {e_ytdlp}")
+            
+            # روش 2: استفاده از instaloader اگر yt-dlp موفق نبود
+            if not video_url:
+                try:
+                    logger.info(f"تلاش برای استخراج URL مستقیم با instaloader: {shortcode}")
+                    post = instaloader.Post.from_shortcode(self.loader.context, shortcode)
+                    if hasattr(post, 'video_url') and post.video_url:
+                        video_url = post.video_url
+                        logger.info("URL مستقیم با instaloader پیدا شد")
+                    else:
+                        logger.warning("URL ویدیو با instaloader یافت نشد")
+                except Exception as e_insta:
+                    logger.warning(f"خطا در یافتن URL مستقیم با instaloader: {e_insta}")
+            
+            # روش 3: پارس کردن صفحه
+            if not video_url:
+                try:
+                    logger.info(f"تلاش برای استخراج URL مستقیم با پارس کردن صفحه: {url}")
+                    # استفاده از User-Agent های مختلف برای بالا بردن شانس موفقیت
+                    user_agents = [
+                        'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
+                        'Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                    ]
+                    
+                    success = False
+                    for ua in user_agents:
+                        if success:
+                            break
+                            
+                        headers = {
+                            'User-Agent': ua,
+                            'Accept': 'text/html,application/xhtml+xml,application/xml',
+                            'Accept-Language': 'en-US,en;q=0.9',
+                            'Referer': 'https://www.instagram.com/',
+                            'Cache-Control': 'no-cache',
+                            'Pragma': 'no-cache'
+                        }
+                        
+                        # افزودن کوکی های تصادفی برای دور زدن محدودیت
+                        cookies = {
+                            'ig_cb': '1',
+                            'ig_did': str(uuid.uuid4()),
+                            'mid': str(uuid.uuid4())[:16],
+                            'csrftoken': str(uuid.uuid4())
+                        }
+                        
+                        response = requests.get(url, headers=headers, cookies=cookies, timeout=15)
+                        
+                        # پترن های مختلف برای یافتن URL ویدیو
+                        video_patterns = [
+                            r'"video_url":"([^"]+)"',
+                            r'property="og:video" content="([^"]+)"',
+                            r'<video[^>]+src="([^"]+)"',
+                            r'"contentUrl":\s*"([^"]+)"'
+                        ]
+                        
+                        for pattern in video_patterns:
+                            match = re.search(pattern, response.text)
+                            if match:
+                                video_url = match.group(1).replace('\\u0026', '&')
+                                logger.info(f"URL مستقیم با پترن {pattern} یافت شد")
+                                success = True
+                                break
+                                
+                except Exception as e_parse:
+                    logger.warning(f"خطا در یافتن URL مستقیم با پارس کردن صفحه: {e_parse}")
+            
+            # اگر URL مستقیم پیدا نشد
+            if not video_url:
+                logger.error("هیچ URL مستقیمی برای دانلود پیدا نشد")
+                return None
+                
             # تنظیم مسیر خروجی
             final_filename = f"instagram_direct_{shortcode}.mp4"
             final_path = get_unique_filename(TEMP_DOWNLOAD_DIR, final_filename)
             
-            # هدرهای مختلف برای درخواست ویدیو
+            # تنظیم هدرهای مختلف برای دانلود
+            user_agents = [
+                'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
+                'Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36'
+            ]
+            
+            # استفاده از user agent متفاوت برای دور زدن محدودیت
+            selected_ua = random.choice(user_agents)
+            
             custom_headers = {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Mobile/15E148 Safari/604.1',
+                'User-Agent': selected_ua,
                 'Accept': '*/*',
                 'Accept-Encoding': 'identity;q=1, *;q=0',
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Referer': url,
-                'Range': 'bytes=0-'
+                'Range': 'bytes=0-',
+                'Origin': 'https://www.instagram.com',
+                'Connection': 'keep-alive'
             }
             
-            # دانلود ویدیو
+            # دانلود ویدیو با مدیریت خطا و تلاش مجدد
             loop = asyncio.get_event_loop()
+            max_retries = 3
+            retry_delay = 2
+            success = False
             
-            # تابع دانلود - اجرا در thread pool
-            def download_file():
-                response = requests.get(video_url, headers=custom_headers, stream=True, timeout=30)
-                response.raise_for_status()
-                
-                with open(final_path, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-                        
-                return os.path.getsize(final_path) > 0
-                
-            success = await loop.run_in_executor(None, download_file)
+            for attempt in range(max_retries):
+                try:
+                    # تابع دانلود با قابلیت نمایش پیشرفت
+                    def download_file():
+                        try:
+                            logger.info(f"دانلود فایل... تلاش {attempt+1}/{max_retries}")
+                            response = requests.get(video_url, headers=custom_headers, stream=True, timeout=30)
+                            response.raise_for_status()
+                            
+                            file_size = int(response.headers.get('content-length', 0))
+                            downloaded = 0
+                            
+                            with open(final_path, 'wb') as f:
+                                for chunk in response.iter_content(chunk_size=8192):
+                                    if chunk:
+                                        f.write(chunk)
+                                        downloaded += len(chunk)
+                            
+                            return os.path.getsize(final_path) > 0
+                        except Exception as e:
+                            logger.warning(f"خطا در دانلود فایل (تلاش {attempt+1}): {e}")
+                            return False
+                    
+                    success = await loop.run_in_executor(None, download_file)
+                    
+                    if success:
+                        logger.info(f"دانلود موفق در تلاش {attempt+1}")
+                        break
+                    else:
+                        logger.warning(f"تلاش {attempt+1} ناموفق، منتظر {retry_delay} ثانیه...")
+                        await asyncio.sleep(retry_delay)
+                        # افزایش تاخیر برای تلاش بعدی
+                        retry_delay *= 2
+                except Exception as download_error:
+                    logger.warning(f"خطا در اجرای تابع دانلود: {download_error}")
+                    await asyncio.sleep(retry_delay)
+                    # افزایش تاخیر برای تلاش بعدی
+                    retry_delay *= 2
             
+            # بررسی نتیجه نهایی
             if success:
+                # پردازش نهایی فایل بر اساس کیفیت درخواستی
+                if quality != "best" and quality != "audio":
+                    # تغییر کیفیت ویدیو اگر درخواست شده
+                    try:
+                        from telegram_fixes import convert_video_quality
+                        logger.info(f"تبدیل کیفیت ویدیو دانلود شده به {quality}...")
+                        converted_path = convert_video_quality(final_path, quality, is_audio_request=False)
+                        if converted_path and os.path.exists(converted_path):
+                            final_path = converted_path
+                    except Exception as conv_error:
+                        logger.error(f"خطا در تبدیل کیفیت ویدیو: {conv_error}")
+                elif quality == "audio":
+                    # استخراج صدا اگر درخواست شده
+                    try:
+                        from audio_processing import extract_audio
+                        logger.info("استخراج صدا از ویدیو...")
+                        audio_path = extract_audio(final_path, 'mp3', '192k')
+                        if audio_path and os.path.exists(audio_path):
+                            final_path = audio_path
+                    except Exception as audio_error:
+                        logger.error(f"خطا در استخراج صدا: {audio_error}")
+                
                 # افزودن به کش با کیفیت
                 cache_key = f"{url}_{quality}"
                 add_to_cache(cache_key, final_path)
                 logger.info(f"دانلود با درخواست مستقیم موفق بود: {final_path}")
                 return final_path
             else:
-                logger.warning("دانلود مستقیم ناموفق بود")
+                logger.warning("دانلود مستقیم ناموفق بود پس از چندین تلاش")
                 return None
                 
         except Exception as e:
@@ -5078,3 +5335,4 @@ if __name__ == "__main__":
                 logger.info(f"فایل کوکی موقت حذف شد: {YOUTUBE_COOKIE_FILE}")
             except:
                 pass
+import random

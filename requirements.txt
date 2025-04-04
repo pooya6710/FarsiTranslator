@@ -1,5 +1,4 @@
 
-python-telegram-bot>=20.0
 yt-dlp>=2023.11.16
 instaloader>=4.10.1
 requests>=2.31.0
@@ -8,8 +7,7 @@ matplotlib
 numpy
 sqlalchemy
 telegram
-python-telegram-bot
 python-telegram-bot==13.15
 trafilatura
 python-dotenv
-python-telegram-bot
+
