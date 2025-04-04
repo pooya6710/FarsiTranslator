@@ -187,19 +187,20 @@ option_cache = {}
 # این برای کمک به حل مشکل "لینک منقضی شده" استفاده می‌شود
 recent_button_clicks = {}
 
-# بارگذاری ماژول اصلاحی اینستاگرام
+# بارگذاری ماژول‌های اصلاحی اینستاگرام
+INSTAGRAM_FIX_PATCH_AVAILABLE = False
+INSTAGRAM_DIRECT_DOWNLOADER_AVAILABLE = False
+
+# ابتدا بررسی ماژول جدید مستقیم دانلود
 try:
-    from enhanced_instagram_downloader import download_instagram_content, patch_ytdlp_for_instagram
-    # اعمال پچ هنگام شروع برنامه
-    if patch_ytdlp_for_instagram():
-        logger.info("پچ yt-dlp برای دانلود اینستاگرام با موفقیت اعمال شد")
-        INSTAGRAM_FIX_PATCH_AVAILABLE = True
-    else:
-        logger.warning("اعمال پچ yt-dlp برای دانلود اینستاگرام ناموفق بود")
-        INSTAGRAM_FIX_PATCH_AVAILABLE = False
+    from instagram_direct_downloader import download_instagram_content
+    INSTAGRAM_DIRECT_DOWNLOADER_AVAILABLE = True
+    INSTAGRAM_FIX_PATCH_AVAILABLE = True  # برای حفظ سازگاری با کد فعلی
+    logger.info("ماژول دانلود مستقیم instagram_direct_downloader با موفقیت اعمال شد")
 except ImportError:
-    logger.warning("ماژول enhanced_instagram_downloader یافت نشد، استفاده از روش‌های معمولی دانلود")
-    INSTAGRAM_FIX_PATCH_AVAILABLE = False
+    logger.warning("ماژول instagram_direct_downloader یافت نشد، تلاش با روش‌های دیگر...")
+except Exception as e:
+    logger.error(f"خطا در بارگیری ماژول instagram_direct_downloader: {e}")
 
 """
 بخش 1: تنظیمات و ثابت‌ها
@@ -841,18 +842,56 @@ class InstagramDownloader:
                 
             logger.info(f"دانلود پست اینستاگرام با کد کوتاه: {shortcode}")
             
-            # استفاده از پچ اختصاصی اگر در دسترس باشد
-            if 'INSTAGRAM_FIX_PATCH_AVAILABLE' in globals() and INSTAGRAM_FIX_PATCH_AVAILABLE:
+            # الویت با دانلود مستقیم با ماژول جدید است (حتی برای آزمایش)
+            logger.info(f"شروع تلاش‌های دانلود برای اینستاگرام URL: {url}, کیفیت: {quality}")
+            downloaded_file = None
+            
+            # آزمایش 1: استفاده مستقیم از ماژول دانلود مستقیم
+            try:
+                from instagram_direct_downloader import download_instagram_content
+                logger.info(f"تلاش اول: استفاده از ماژول instagram_direct_downloader")
+                
+                # ایجاد مسیر خروجی منحصر به فرد
+                output_dir = os.path.join(TEMP_DOWNLOAD_DIR, f"instagram_direct_{shortcode}_{str(uuid.uuid4().hex)[:8]}")
+                os.makedirs(output_dir, exist_ok=True)
+                
+                # استفاده مستقیم از تابع (بدون async)
+                logger.info(f"فراخوانی مستقیم download_instagram_content با مسیر: {output_dir}")
+                direct_result = download_instagram_content(url, output_dir, quality)
+                logger.info(f"نتیجه فراخوانی مستقیم: {direct_result}")
+                
+                if direct_result and os.path.exists(direct_result) and os.path.getsize(direct_result) > 1024:  # 1KB
+                    downloaded_file = direct_result
+                    logger.info(f"دانلود مستقیم با instagram_direct_downloader موفق بود: {downloaded_file}")
+                else:
+                    logger.warning("دانلود مستقیم ناموفق بود یا فایل خالی است")
+            except Exception as direct_error:
+                logger.error(f"خطا در استفاده مستقیم از دانلود مستقیم: {direct_error}")
+            
+            # اگر روش اول ناموفق بود، از async استفاده می‌کنیم
+            if not downloaded_file:
                 try:
-                    from enhanced_instagram_downloader import download_instagram_content
-                    logger.info(f"استفاده از پچ اختصاصی برای دانلود اینستاگرام: {url}, کیفیت: {quality}")
-                    
-                    # اجرای تابع دانلود بصورت همزمان
+                    logger.info("تلاش دوم: استفاده از دانلود مستقیم با async")
                     loop = asyncio.get_event_loop()
-                    downloaded_file = await loop.run_in_executor(
+                    
+                    # ایجاد مسیر خروجی جدید
+                    output_dir = os.path.join(TEMP_DOWNLOAD_DIR, f"instagram_async_{shortcode}_{str(uuid.uuid4().hex)[:8]}")
+                    os.makedirs(output_dir, exist_ok=True)
+                    
+                    # استفاده از run_in_executor
+                    async_result = await loop.run_in_executor(
                         None,
-                        lambda: download_instagram_content(url, TEMP_DOWNLOAD_DIR, quality)
+                        lambda: download_instagram_content(url, output_dir, quality)
                     )
+                    logger.info(f"نتیجه دانلود async: {async_result}")
+                    
+                    if async_result and os.path.exists(async_result) and os.path.getsize(async_result) > 1024:
+                        downloaded_file = async_result
+                        logger.info(f"دانلود async با instagram_direct_downloader موفق بود: {downloaded_file}")
+                    else:
+                        logger.warning("دانلود async نیز ناموفق بود یا فایل خالی است")
+                except Exception as async_error:
+                    logger.error(f"خطا در استفاده از دانلود async: {async_error}")
                     
                     if downloaded_file and os.path.exists(downloaded_file) and os.path.getsize(downloaded_file) > 0:
                         logger.info(f"دانلود اینستاگرام با پچ اختصاصی موفقیت‌آمیز بود: {downloaded_file}")

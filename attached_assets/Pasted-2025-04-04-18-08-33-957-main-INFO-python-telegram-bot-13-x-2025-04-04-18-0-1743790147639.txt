@@ -1,0 +1,84 @@
+2025-04-04 18:08:33,957 - __main__ - INFO - استفاده از python-telegram-bot نسخه 13.x
+2025-04-04 18:08:33,979 - __main__ - INFO - ماژول دانلود مستقیم اینستاگرام با موفقیت اعمال شد
+2025-04-04 18:08:33,979 - __main__ - INFO - مسیر دانلود موقت: /home/runner/workspace/downloads
+2025-04-04 18:08:33,980 - __main__ - INFO - فایل کوکی موقت یوتیوب ایجاد شد: /tmp/youtube_cookies_5shqpikm.txt
+2025-04-04 18:08:34,635 - database_models - WARNING - آدرس اتصال به پایگاه داده یافت نشد!
+2025-04-04 18:08:34,655 - performance_optimizer - INFO - پول اجرایی با 7 thread راه‌اندازی شد
+2025-04-04 18:08:34,656 - performance_optimizer - INFO - بهینه‌سازی‌های عملکرد با موفقیت راه‌اندازی شدند
+2025-04-04 18:08:34,700 - database_models - INFO - جداول پایگاه داده با موفقیت ایجاد شدند
+2025-04-04 18:08:34,714 - __main__ - INFO - سیستم آمار و عملکرد با موفقیت راه‌اندازی شد
+2025-04-04 18:08:34,715 - __main__ - INFO - در حال اجرای تست‌های خودکار...
+2025-04-04 18:08:34,719 - root - INFO - فایل به کش اضافه شد (بدون تعیین کیفیت): /tmp/test_video_2qulh_r5.mp4
+2025-04-04 18:08:34,719 - root - INFO - فایل از کش برگردانده شد (بدون تعیین کیفیت): /tmp/test_video_2qulh_r5.mp4
+2025-04-04 18:08:34,719 - __main__ - INFO - تست کش با موفقیت انجام شد
+2025-04-04 18:08:34,720 - __main__ - INFO - همه تست‌ها با موفقیت اجرا شدند!
+2025-04-04 18:08:34,720 - __main__ - INFO - فایل قفل قبلی حذف شد
+2025-04-04 18:08:34,720 - __main__ - INFO - فایل قفل جدید با PID 4535 ایجاد شد
+2025-04-04 18:08:34,721 - __main__ - INFO - پاکسازی فایل‌های موقت: 0 فایل حذف شد
+2025-04-04 18:08:34,721 - __main__ - INFO - اپلیکیشن ربات با نسخه PTB 13.x ایجاد شد
+2025-04-04 18:08:34,722 - __main__ - INFO - هندلرهای آمار با موفقیت اضافه شدند
+2025-04-04 18:08:34,724 - bulk_download_handler - INFO - هندلرهای دانلود موازی با موفقیت ثبت شدند
+2025-04-04 18:08:34,724 - __main__ - INFO - هندلرهای دانلود موازی با موفقیت اضافه شدند
+2025-04-04 18:08:34,724 - apscheduler.scheduler - INFO - Scheduler started
+2025-04-04 18:08:35,227 - __main__ - INFO - ربات با API نسخه 13.x راه‌اندازی شد
+2025-04-04 18:08:35,228 - __main__ - INFO - ربات با موفقیت راه‌اندازی شد!
+2025-04-04 18:08:35,228 - __main__ - INFO - پاکسازی فایل‌های موقت: 0 فایل حذف شد
+2025-04-04 18:08:39,818 - __main__ - INFO - پیام جدید از کاربر 286420965: https://www.instagram.com/reel...
+2025-04-04 18:08:39,821 - stats_manager - ERROR - خطا در ثبت یا بروزرسانی کاربر: (sqlite3.OperationalError) no such table: users
+[SQL: SELECT users.id AS users_id, users.username AS users_username, users.first_name AS users_first_name, users.last_name AS users_last_name, users.language_code AS users_language_code, users.is_admin AS users_is_admin, users.created_at AS users_created_at, users.last_activity AS users_last_activity 
+FROM users 
+WHERE users.id = ?
+ LIMIT ? OFFSET ?]
+[parameters: (286420965, 1, 0)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-04-04 18:08:40,232 - __main__ - INFO - URL اینستاگرام نرمال‌سازی شد: https://www.instagram.com/reel/DEKth9PMpg1/?igsh=dWJ0djdkdW1nbHF4 -> https://www.instagram.com/reel/DEKth9PMpg1/
+2025-04-04 18:08:40,232 - __main__ - INFO - شروع پردازش URL اینستاگرام (sync): https://www.instagram.com/reel...
+2025-04-04 18:08:40,232 - __main__ - INFO - دانلودر اینستاگرام راه‌اندازی شد
+2025-04-04 18:08:40,232 - __main__ - INFO - گزینه 0: کیفیت=1080p, نمایش=1. کیفیت بالا (1080p)
+2025-04-04 18:08:40,232 - __main__ - INFO - گزینه 1: کیفیت=720p, نمایش=2. کیفیت متوسط (720p)
+2025-04-04 18:08:40,232 - __main__ - INFO - گزینه 2: کیفیت=480p, نمایش=3. کیفیت پایین (480p)
+2025-04-04 18:08:40,232 - __main__ - INFO - گزینه 3: کیفیت=360p, نمایش=4. کیفیت کم (360p)
+2025-04-04 18:08:40,232 - __main__ - INFO - گزینه 4: کیفیت=240p, نمایش=5. کیفیت خیلی کم (240p)
+2025-04-04 18:08:40,233 - __main__ - INFO - گزینه 5: کیفیت=audio, نمایش=6. فقط صدا (MP3)
+2025-04-04 18:08:41,773 - __main__ - INFO - کاربر 286420965 دکمه dl_ig_1_ig_b71f50 را انتخاب کرد
+2025-04-04 18:08:41,908 - __main__ - INFO - شروع دانلود اینستاگرام برای کاربر 286420965 با کیفیت 720p
+2025-04-04 18:08:42,042 - __main__ - INFO - دانلودر اینستاگرام راه‌اندازی شد
+2025-04-04 18:08:42,042 - __main__ - INFO - شروع دانلود ویدیوی اینستاگرام با بهترین کیفیت برای تبدیل به 720p
+2025-04-04 18:08:42,042 - __main__ - INFO - استفاده از فرمت جدید best برای دانلود اینستاگرام با کیفیت best
+2025-04-04 18:08:42,042 - __main__ - INFO - شروع دانلود اینستاگرام با yt-dlp و تنظیمات پیشرفته: https://www.instagram.com/reel
+ERROR: [Instagram] DEKth9PMpg1: Requested content is not available, rate-limit reached or login required. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies
+2025-04-04 18:08:43,510 - __main__ - WARNING - خطا در دانلود اینستاگرام با yt-dlp: ERROR: [Instagram] DEKth9PMpg1: Requested content is not available, rate-limit reached or login required. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies, تلاش با روش جایگزین...
+2025-04-04 18:08:43,510 - __main__ - INFO - تلاش با روش جایگزین اول: User-Agent دیگر
+ERROR: [Instagram] DEKth9PMpg1: Requested content is not available, rate-limit reached or login required. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies
+2025-04-04 18:08:44,627 - __main__ - WARNING - خطا در روش جایگزین اول: ERROR: [Instagram] DEKth9PMpg1: Requested content is not available, rate-limit reached or login required. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies
+2025-04-04 18:08:44,627 - __main__ - INFO - تلاش با روش جایگزین دوم: حالت اندروید
+WARNING: [Instagram] DEKth9PMpg1: No csrf token set by Instagram API
+WARNING: [Instagram] DEKth9PMpg1: General metadata extraction failed (some metadata might be missing).
+WARNING: [Instagram] unable to extract shared data; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U
+WARNING: [Instagram] Main webpage is locked behind the login page. Retrying with embed webpage (some metadata might be missing).
+WARNING: [Instagram] unable to extract additional data; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U
+ERROR: [Instagram] DEKth9PMpg1: Requested content is not available, rate-limit reached or login required. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies
+2025-04-04 18:08:46,492 - __main__ - WARNING - خطا در روش جایگزین دوم: ERROR: [Instagram] DEKth9PMpg1: Requested content is not available, rate-limit reached or login required. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies
+2025-04-04 18:08:46,492 - __main__ - WARNING - فایل دانلود شده با همه روش‌ها خالی یا ناقص است
+2025-04-04 18:08:46,493 - __main__ - WARNING - دانلود با بهترین کیفیت ناموفق بود، تلاش مستقیم با کیفیت 720p
+2025-04-04 18:08:46,494 - __main__ - INFO - استفاده از فرمت جدید best[height<=720]/bestvideo[height<=720]+bestaudio/best برای دانلود اینستاگرام با کیفیت 720p
+2025-04-04 18:08:46,494 - __main__ - INFO - شروع دانلود اینستاگرام با yt-dlp و تنظیمات پیشرفته: https://www.instagram.com/reel
+ERROR: [Instagram] DEKth9PMpg1: Requested content is not available, rate-limit reached or login required. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies
+2025-04-04 18:08:48,273 - __main__ - WARNING - خطا در دانلود اینستاگرام با yt-dlp: ERROR: [Instagram] DEKth9PMpg1: Requested content is not available, rate-limit reached or login required. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies, تلاش با روش جایگزین...
+2025-04-04 18:08:48,273 - __main__ - INFO - تلاش با روش جایگزین اول: User-Agent دیگر
+ERROR: [Instagram] DEKth9PMpg1: Requested content is not available, rate-limit reached or login required. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies
+2025-04-04 18:08:49,410 - __main__ - WARNING - خطا در روش جایگزین اول: ERROR: [Instagram] DEKth9PMpg1: Requested content is not available, rate-limit reached or login required. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies
+2025-04-04 18:08:49,410 - __main__ - INFO - تلاش با روش جایگزین دوم: حالت اندروید
+WARNING: [Instagram] DEKth9PMpg1: No csrf token set by Instagram API
+WARNING: [Instagram] DEKth9PMpg1: General metadata extraction failed (some metadata might be missing).
+WARNING: [Instagram] unable to extract shared data; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U
+WARNING: [Instagram] Main webpage is locked behind the login page. Retrying with embed webpage (some metadata might be missing).
+WARNING: [Instagram] unable to extract additional data; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U
+ERROR: [Instagram] DEKth9PMpg1: Requested content is not available, rate-limit reached or login required. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies
+2025-04-04 18:08:50,697 - __main__ - WARNING - خطا در روش جایگزین دوم: ERROR: [Instagram] DEKth9PMpg1: Requested content is not available, rate-limit reached or login required. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies
+2025-04-04 18:08:50,697 - __main__ - WARNING - فایل دانلود شده با همه روش‌ها خالی یا ناقص است
+/home/runner/workspace/telegram_downloader.py:4932: RuntimeWarning: coroutine 'InstagramDownloader._download_with_ytdlp' was never awaited
+  new_loop.close()
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+2025-04-04 18:08:50,701 - __main__ - INFO - دانلود با کیفیت 720p در 8.66 ثانیه کامل شد
+2025-04-04 18:08:50,701 - __main__ - ERROR - خطا: مسیر فایل نامعتبر است - None
