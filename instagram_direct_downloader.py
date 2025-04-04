@@ -30,14 +30,43 @@ logger = logging.getLogger(__name__)
 
 # ثابت‌های مهم
 DEFAULT_USER_AGENTS = [
-    # User-Agent های موبایل اینستاگرام (با اولویت ویژه برای API)
-    'Instagram 243.0.0.16.111 Android (31/12; 480dpi; 1080x2298; OPPO; CPH2269; OP4F2F; mt6885; en_US; 384108453)',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 271.0.0.8.65 (iPhone14,3; iOS 17_0; en_US; en-US; scale=3.00; 1284x2778; 449818231)',
-    # User-Agent های موبایل به‌روز شده iOS 16 و 17 و Android 13/14
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
-    'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36',
-    'Mozilla/5.0 (Linux; Android 13; SM-S908B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36'
+    # User-Agent های رسمی کلاینت اینستاگرام - نسخه‌های جدید ۲۰۲۵ (با اولویت ویژه برای API)
+    'Instagram 301.0.0.37.111 Android (35/14; 480dpi; 1080x2400; Google; Pixel 8; GP4BC; google; en_US; 532277295)',
+    'Instagram 309.0.0.14.119 Android (34/14; 440dpi; 1080x2400; Samsung; SM-S918B; brogsp; exynos2300; en_US; 551409764)',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 312.0.0.0.67 (iPhone15,4; iOS 18_1; en_US; en-US; scale=3.00; 1170x2532; 537948800)',
+    
+    # User-Agent های اینستاگرام وب و PWA - به‌روز برای ۲۰۲۵
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Instagram Web App',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15 Instagram/312.0',
+    
+    # User-Agent های موبایل به‌روز شده iOS 17/18 و Android 14/15
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.4 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (Linux; Android 15; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+    'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36'
+]
+
+# کوکی‌های ایجاد شده با روش‌های مختلف (با دقت بالا)
+DEFAULT_COOKIES = [
+    {
+        'csrftoken': ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32)),
+        'sessionid': ''.join(random.choice(string.digits) for _ in range(10)) + '%3A' + ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32)) + '%3A' + ''.join(random.choice(string.digits) for _ in range(2)),
+        'ds_user_id': ''.join(random.choice(string.digits) for _ in range(10)),
+        'ig_did': ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(32)),
+        'mid': ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(26)),
+        'datr': ''.join(random.choice(string.ascii_letters) for _ in range(22)) + '.',
+        'rur': '"RVA,'+ ''.join(random.choice(string.digits) for _ in range(10)) + '\\054' + str(int(time.time())) + ':01f"',
+    },
+    {
+        'csrftoken': ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32)),
+        'sessionid': '',
+        'ds_user_id': '',
+        'ig_did': ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(32)),
+        'mid': ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(26)),
+        'datr': ''.join(random.choice(string.ascii_letters) for _ in range(22)) + '.',
+        'ig_nrcb': '1',
+        'dpr': '2',
+    }
 ]
 
 # مسیر دایرکتوری دانلودها
@@ -142,6 +171,8 @@ def generate_session_storage() -> Dict[str, str]:
 def download_with_embed_api(url: str, shortcode: str, output_path: str, quality: str) -> Optional[str]:
     """
     دانلود محتوا با استفاده از API امبد اینستاگرام
+    این متد از API امبد اینستاگرام استفاده می‌کند که نیاز به لاگین ندارد
+    و از محدودیت‌های نرخ (rate limit) عادی اینستاگرام دور می‌زند.
     
     Args:
         url: آدرس پست اینستاگرام
@@ -169,19 +200,27 @@ def download_with_embed_api(url: str, shortcode: str, output_path: str, quality:
             embed_url = f"https://www.instagram.com/p/{shortcode}/embed/"
             logger.info(f"استفاده از URL امبد نوع پست عادی: {embed_url}")
         
-        # هدرها برای درخواست امبد
+        # هدرها برای درخواست امبد - اصلاح شده برای دور زدن محدودیت‌ها
         headers = generate_headers(is_mobile=False)
         headers['Referer'] = 'https://www.instagram.com/'
+        headers['X-Instagram-AJAX'] = '1'
+        headers['X-IG-App-ID'] = '936619743392459'
+        headers['X-ASBD-ID'] = '129477'
         
-        # درخواست به صفحه امبد
+        # افزودن کوکی برای دور زدن محدودیت‌های دسترسی
         session = requests.Session()
-        response = session.get(embed_url, headers=headers, timeout=10)
+        # اضافه کردن کوکی‌های حیاتی
+        for key, value in DEFAULT_COOKIES[0].items():
+            session.cookies.set(key, value, domain='.instagram.com')
+            
+        # درخواست به صفحه امبد
+        response = session.get(embed_url, headers=headers, timeout=15)
         
         if response.status_code != 200:
             logger.warning(f"دسترسی به صفحه امبد ناموفق با کد وضعیت: {response.status_code}")
             return None
         
-        # الگوهای جستجو برای URL ویدیو در HTML
+        # الگوهای جستجو برای URL ویدیو در HTML - بهبود پیدا کرده با الگوهای دقیق‌تر
         video_patterns = [
             r'\"video_url\":\"([^\"]+)\"',
             r'property="og:video" content="([^"]+)"',
@@ -189,6 +228,11 @@ def download_with_embed_api(url: str, shortcode: str, output_path: str, quality:
             r'<source src="([^"]+)"',
             r'"contentUrl":"([^"]+)"',
             r'"video":{"contentUrl":"([^"]+)"',
+            r'video_url":"([^"]+)"',
+            r'"video":\s*{\s*"contentUrl":\s*"([^"]+)"',
+            r'"@type":\s*"VideoObject",\s*"contentUrl":\s*"([^"]+)"',
+            r'<meta property="og:video:secure_url" content="([^"]+)"',
+            r'<meta name="twitter:player:stream" content="([^"]+)"',
         ]
         
         media_url = None
@@ -311,6 +355,325 @@ def download_with_embed_api(url: str, shortcode: str, output_path: str, quality:
         logger.error(f"خطا در دانلود با API امبد: {e}")
     
     return None
+
+def download_with_graphql_api(url: str, shortcode: str, output_path: str, quality: str) -> Optional[str]:
+    """
+    دانلود محتوا با استفاده از GraphQL API اینستاگرام (روش جدید و قدرتمند)
+    این روش با استفاده از API داخلی GraphQL اینستاگرام که برای وب اپلیکیشن طراحی شده است کار می‌کند.
+    شناسه‌های API به صورت تصادفی ایجاد می‌شوند تا از مسدود شدن جلوگیری شود.
+    
+    Args:
+        url: آدرس پست اینستاگرام
+        shortcode: کد کوتاه استخراج شده
+        output_path: مسیر خروجی
+        quality: کیفیت درخواستی (best, 1080p, 720p, 480p, 360p, 240p, audio)
+        
+    Returns:
+        مسیر فایل دانلود شده یا None در صورت خطا
+    """
+    try:
+        logger.info(f"تلاش دانلود با GraphQL API برای {shortcode}")
+        
+        # تعیین فرمت خروجی
+        is_audio = quality == "audio"
+        ext = "mp3" if is_audio else "mp4"
+        final_filename = f"instagram_graphql_{'audio' if is_audio else 'video'}_{shortcode}.{ext}"
+        output_file = os.path.join(output_path, final_filename)
+        
+        # آماده‌سازی GraphQL query با استفاده از شورت‌کد
+        graphql_url = "https://www.instagram.com/graphql/query/"
+        query_hash = "b3055c01b4b222b8a47dc12b090e4e64"  # hash برای media shortcode
+        
+        variables = {
+            "shortcode": shortcode,
+            "child_comment_count": 0,
+            "fetch_comment_count": 0,
+            "parent_comment_count": 0,
+            "has_threaded_comments": False
+        }
+        
+        # پارامترهای query string
+        params = {
+            "query_hash": query_hash,
+            "variables": json.dumps(variables)
+        }
+        
+        # انتخاب User-Agent و هدرهای مناسب
+        headers = {
+            'User-Agent': random.choice(DEFAULT_USER_AGENTS),
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Referer': f'https://www.instagram.com/p/{shortcode}/',
+            'X-IG-App-ID': '936619743392459',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Connection': 'keep-alive',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache',
+        }
+        
+        # استفاده از کوکی‌های پیش‌فرض (اختیاری)
+        cookies = random.choice(DEFAULT_COOKIES)
+        
+        # ایجاد session با کوکی‌های تصادفی
+        session = requests.Session()
+        for key, value in cookies.items():
+            if value:  # فقط کوکی‌های غیر خالی را اضافه کن
+                session.cookies.set(key, value, domain='.instagram.com')
+        
+        # ارسال درخواست GraphQL
+        response = session.get(graphql_url, params=params, headers=headers, timeout=15)
+        
+        media_url = None
+        
+        # پردازش پاسخ
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                if 'data' in data and 'shortcode_media' in data['data']:
+                    media = data['data']['shortcode_media']
+                    
+                    # تلاش برای یافتن URL ویدیو
+                    if 'video_url' in media:
+                        media_url = media['video_url']
+                        logger.info(f"URL ویدیو از GraphQL پیدا شد: {media_url}")
+                    elif 'edge_sidecar_to_children' in media:
+                        # برای پست‌های چندتایی (کاروسل)
+                        edges = media['edge_sidecar_to_children']['edges']
+                        for edge in edges:
+                            node = edge['node']
+                            if 'video_url' in node:
+                                media_url = node['video_url']
+                                logger.info(f"URL ویدیو از کاروسل GraphQL پیدا شد: {media_url}")
+                                break
+            except Exception as e:
+                logger.warning(f"خطا در پردازش پاسخ GraphQL: {e}")
+        else:
+            logger.warning(f"درخواست GraphQL ناموفق با کد وضعیت: {response.status_code}")
+            
+        # اگر URL پیدا شد، دانلود کنیم
+        if media_url:
+            logger.info(f"شروع دانلود مستقیم از GraphQL URL: {media_url}")
+            
+            # ایجاد هدرهای جدید برای دانلود
+            dl_headers = {
+                'User-Agent': headers['User-Agent'],
+                'Accept': '*/*',
+                'Accept-Encoding': 'identity;q=1, *;q=0',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Referer': f'https://www.instagram.com/p/{shortcode}/',
+                'Range': 'bytes=0-',
+                'Connection': 'keep-alive'
+            }
+            
+            response = session.get(media_url, headers=dl_headers, stream=True, timeout=30)
+            
+            if response.status_code in [200, 206]:
+                with open(output_file, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                
+                # بررسی فایل نهایی
+                if os.path.exists(output_file) and os.path.getsize(output_file) > 10240:  # حداقل 10KB
+                    # اگر درخواست صوتی بود، تبدیل به MP3
+                    if is_audio:
+                        try:
+                            audio_output = output_file.replace('.mp4', '.mp3')
+                            ffmpeg_cmd = [
+                                '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
+                                '-i', output_file,
+                                '-vn',
+                                '-ab', '192k',
+                                '-ar', '44100',
+                                '-y',
+                                audio_output
+                            ]
+                            
+                            subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                            
+                            if os.path.exists(audio_output) and os.path.getsize(audio_output) > 0:
+                                logger.info(f"تبدیل به MP3 موفق: {audio_output}")
+                                return audio_output
+                            else:
+                                logger.warning("تبدیل به MP3 ناموفق بود")
+                                return output_file
+                        except Exception as e:
+                            logger.warning(f"خطا در تبدیل به MP3: {e}")
+                            return output_file
+                    else:
+                        return output_file
+                else:
+                    logger.warning(f"فایل دانلود شده خالی یا ناقص است: {output_file}")
+            else:
+                logger.warning(f"دانلود مستقیم ناموفق با کد وضعیت: {response.status_code}")
+        else:
+            logger.warning("هیچ URL مدیایی از GraphQL پیدا نشد")
+    
+    except Exception as e:
+        logger.error(f"خطا در دانلود با GraphQL API: {e}")
+    
+    return None
+
+
+def download_with_public_api(url: str, shortcode: str, output_path: str, quality: str) -> Optional[str]:
+    """
+    دانلود محتوا با استفاده از Public API اینستاگرام (oEmbed)
+    
+    Args:
+        url: آدرس پست اینستاگرام
+        shortcode: کد کوتاه استخراج شده
+        output_path: مسیر خروجی
+        quality: کیفیت درخواستی
+        
+    Returns:
+        مسیر فایل دانلود شده یا None در صورت خطا
+    """
+    try:
+        logger.info(f"تلاش دانلود با Public API برای {shortcode}")
+        
+        # تعیین فرمت خروجی
+        is_audio = quality == "audio"
+        ext = "mp3" if is_audio else "mp4"
+        final_filename = f"instagram_public_{'audio' if is_audio else 'video'}_{shortcode}.{ext}"
+        output_file = os.path.join(output_path, final_filename)
+        
+        # آماده‌سازی URL های API عمومی
+        oembed_url = f"https://api.instagram.com/oembed/?url=https://www.instagram.com/p/{shortcode}/"
+        public_url = f"https://www.instagram.com/p/{shortcode}/?__a=1&__d=dis"
+        
+        # انتخاب User-Agent و هدرهای مناسب
+        headers = {
+            'User-Agent': DEFAULT_USER_AGENTS[4],  # User-Agent دسکتاپ
+            'Accept': 'application/json',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Referer': 'https://www.instagram.com/',
+            'X-IG-App-ID': '936619743392459',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Connection': 'keep-alive',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+        }
+        
+        # استفاده از کوکی‌های پیش‌فرض (اختیاری)
+        cookies = DEFAULT_COOKIES[1]  # کوکی‌های ساده‌تر
+        
+        # ایجاد session با کوکی‌های تصادفی
+        session = requests.Session()
+        for key, value in cookies.items():
+            if value:  # فقط کوکی‌های غیر خالی را اضافه کن
+                session.cookies.set(key, value, domain='.instagram.com')
+        
+        # ابتدا امتحان API عمومی جدید
+        response = session.get(public_url, headers=headers, timeout=10)
+        media_url = None
+        
+        # پردازش پاسخ
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                # استخراج URL ویدیو از ساختارهای مختلف API
+                if 'items' in data and len(data['items']) > 0:
+                    item = data['items'][0]
+                    if 'video_versions' in item and len(item['video_versions']) > 0:
+                        media_url = item['video_versions'][0]['url']
+                    elif 'carousel_media' in item:
+                        for media_item in item['carousel_media']:
+                            if 'video_versions' in media_item and len(media_item['video_versions']) > 0:
+                                media_url = media_item['video_versions'][0]['url']
+                                break
+            except Exception as e:
+                logger.warning(f"خطا در پردازش پاسخ Public API: {e}")
+                
+        # اگر روش اول شکست خورد، روش oEmbed را امتحان کنیم
+        if not media_url:
+            try:
+                response = session.get(oembed_url, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    # از oEmbed فقط thumbnail_url را می‌گیریم و سپس آن را دستکاری میکنیم
+                    if 'thumbnail_url' in data:
+                        thumbnail_url = data['thumbnail_url']
+                        # تلاش برای تبدیل thumbnail_url به video_url
+                        if thumbnail_url:
+                            # در برخی موارد، می‌توان URL تامبنیل را به URL ویدیو تبدیل کرد
+                            possible_video_url = thumbnail_url.replace('/s640x640/', '/').replace('_n.jpg', '.mp4')
+                            # امتحان این URL
+                            head_response = session.head(possible_video_url, headers=headers, timeout=5)
+                            if head_response.status_code == 200:
+                                media_url = possible_video_url
+            except Exception as e:
+                logger.warning(f"خطا در پردازش پاسخ oEmbed: {e}")
+                
+        # اگر URL پیدا شد، دانلود کنیم
+        if media_url:
+            logger.info(f"شروع دانلود مستقیم از Public API URL: {media_url}")
+            
+            # ایجاد هدرهای جدید برای دانلود
+            dl_headers = {
+                'User-Agent': headers['User-Agent'],
+                'Accept': '*/*',
+                'Accept-Encoding': 'identity;q=1, *;q=0',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Referer': f'https://www.instagram.com/p/{shortcode}/',
+                'Range': 'bytes=0-',
+                'Connection': 'keep-alive'
+            }
+            
+            response = session.get(media_url, headers=dl_headers, stream=True, timeout=30)
+            
+            if response.status_code in [200, 206]:
+                with open(output_file, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                
+                # بررسی فایل نهایی
+                if os.path.exists(output_file) and os.path.getsize(output_file) > 10240:  # حداقل 10KB
+                    # اگر درخواست صوتی بود، تبدیل به MP3
+                    if is_audio:
+                        try:
+                            audio_output = output_file.replace('.mp4', '.mp3')
+                            ffmpeg_cmd = [
+                                '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg',
+                                '-i', output_file,
+                                '-vn',
+                                '-ab', '192k',
+                                '-ar', '44100',
+                                '-y',
+                                audio_output
+                            ]
+                            
+                            subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                            
+                            if os.path.exists(audio_output) and os.path.getsize(audio_output) > 0:
+                                logger.info(f"تبدیل به MP3 موفق: {audio_output}")
+                                return audio_output
+                            else:
+                                logger.warning("تبدیل به MP3 ناموفق بود")
+                                return output_file
+                        except Exception as e:
+                            logger.warning(f"خطا در تبدیل به MP3: {e}")
+                            return output_file
+                    else:
+                        return output_file
+                else:
+                    logger.warning(f"فایل دانلود شده خالی یا ناقص است: {output_file}")
+            else:
+                logger.warning(f"دانلود مستقیم ناموفق با کد وضعیت: {response.status_code}")
+        else:
+            logger.warning("هیچ URL مدیایی از Public API پیدا نشد")
+    
+    except Exception as e:
+        logger.error(f"خطا در دانلود با Public API: {e}")
+    
+    return None
+
 
 def download_with_mobile_api(url: str, shortcode: str, output_path: str, quality: str) -> Optional[str]:
     """
@@ -762,6 +1125,11 @@ def download_with_curl_method(url: str, shortcode: str, output_path: str, qualit
 def download_instagram_content(url: str, output_path: str, quality: str = "best") -> Optional[str]:
     """
     دانلود محتوا از اینستاگرام با استفاده از همه روش‌های ممکن
+    این تابع برای دانلود بدون نیاز به لاگین طراحی شده و از چندین روش پشت سر هم استفاده می‌کند.
+    اولویت دانلود با استفاده از API های رسمی اینستاگرام است که نیاز به لاگین ندارند.
+    
+    این تابع بخشی از ماژول instagram_direct_downloader است که برای استفاده در ربات تلگرام 
+    طراحی شده است. این تابع با استفاده از روش‌های مختلف سعی می‌کند بدون احراز هویت محتوا را دانلود کند.
     
     Args:
         url: آدرس پست اینستاگرام
@@ -792,17 +1160,61 @@ def download_instagram_content(url: str, output_path: str, quality: str = "best"
     download_dir = os.path.join(output_path, f"instagram_{shortcode}")
     os.makedirs(download_dir, exist_ok=True)
     
-    # لیست روش‌های مختلف دانلود به ترتیب اولویت
-    methods = [
-        # API امبد با الویت اول - اغلب با موفقیت کار می‌کند
-        ("API امبد", lambda: download_with_embed_api(url, shortcode, download_dir, quality)),
-        # روش مستقیم با الویت دوم
-        ("روش مستقیم کامل", lambda: download_with_direct_method(url, shortcode, download_dir, quality)),
-        # API موبایل با الویت سوم
-        ("API موبایل", lambda: download_with_mobile_api(url, shortcode, download_dir, quality)),
-        # روش curl با الویت آخر
-        ("روش curl", lambda: download_with_curl_method(url, shortcode, download_dir, quality))
-    ]
+    # لیست روش‌های مختلف دانلود به ترتیب اولویت - اصلاح شده با اولویت‌های جدید
+    # مرتب‌سازی روش‌های دانلود براساس میزان موفقیت در دور زدن محدودیت‌های اینستاگرام
+    methods = []
+    
+    # متدها را بر اساس کیفیت درخواستی اولویت‌بندی می‌کنیم
+    if quality == "audio":
+        # برای درخواست‌های صوتی، روش‌های خاص اولویت بالاتری دارند
+        methods = [
+            # روش گراف‌کوئری با اولویت اول - روش جدید و قوی
+            ("GraphQL API", lambda: download_with_graphql_api(url, shortcode, download_dir, quality)),
+            # API موبایل برای صدا خوب عمل می‌کند
+            ("API موبایل", lambda: download_with_mobile_api(url, shortcode, download_dir, quality)),
+            # API امبد برای صدا
+            ("API امبد", lambda: download_with_embed_api(url, shortcode, download_dir, quality)),
+            # سایر روش‌ها
+            ("Public API", lambda: download_with_public_api(url, shortcode, download_dir, quality)),
+            ("روش مستقیم کامل", lambda: download_with_direct_method(url, shortcode, download_dir, quality)),
+            ("روش curl", lambda: download_with_curl_method(url, shortcode, download_dir, quality))
+        ]
+    elif "240p" in quality or "360p" in quality:
+        # برای کیفیت‌های پایین، API موبایل بهتر است
+        methods = [
+            ("API موبایل", lambda: download_with_mobile_api(url, shortcode, download_dir, quality)),
+            ("GraphQL API", lambda: download_with_graphql_api(url, shortcode, download_dir, quality)),
+            ("API امبد", lambda: download_with_embed_api(url, shortcode, download_dir, quality)),
+            ("Public API", lambda: download_with_public_api(url, shortcode, download_dir, quality)),
+            ("روش مستقیم کامل", lambda: download_with_direct_method(url, shortcode, download_dir, quality)),
+            ("روش curl", lambda: download_with_curl_method(url, shortcode, download_dir, quality))
+        ]
+    elif "1080p" in quality or "720p" in quality or "best" in quality:
+        # برای کیفیت‌های بالا، GraphQL API بهتر است
+        methods = [
+            ("GraphQL API", lambda: download_with_graphql_api(url, shortcode, download_dir, quality)),
+            ("API امبد", lambda: download_with_embed_api(url, shortcode, download_dir, quality)),
+            ("Public API", lambda: download_with_public_api(url, shortcode, download_dir, quality)),
+            ("API موبایل", lambda: download_with_mobile_api(url, shortcode, download_dir, quality)),
+            ("روش مستقیم کامل", lambda: download_with_direct_method(url, shortcode, download_dir, quality)),
+            ("روش curl", lambda: download_with_curl_method(url, shortcode, download_dir, quality))
+        ]
+    else:
+        # پیش‌فرض برای سایر کیفیت‌ها
+        methods = [
+            # روش گراف‌کوئری با اولویت اول - روش جدید و قوی
+            ("GraphQL API", lambda: download_with_graphql_api(url, shortcode, download_dir, quality)),
+            # API امبد با اولویت دوم
+            ("API امبد", lambda: download_with_embed_api(url, shortcode, download_dir, quality)),
+            # روش با استفاده از Public API
+            ("Public API", lambda: download_with_public_api(url, shortcode, download_dir, quality)),
+            # API موبایل 
+            ("API موبایل", lambda: download_with_mobile_api(url, shortcode, download_dir, quality)),
+            # روش مستقیم کامل
+            ("روش مستقیم کامل", lambda: download_with_direct_method(url, shortcode, download_dir, quality)),
+            # روش curl با اولویت آخر
+            ("روش curl", lambda: download_with_curl_method(url, shortcode, download_dir, quality))
+        ]
     
     downloaded_file = None
     

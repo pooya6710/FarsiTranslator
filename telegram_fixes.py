@@ -559,6 +559,12 @@ def convert_video_quality(video_path: str, quality: str = "720p", is_audio_reque
         مسیر فایل تبدیل شده یا None در صورت خطا
     """
     # اطمینان از اینکه مسیر فایل معتبر است
+    import os
+    import subprocess
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
     if not video_path or not os.path.exists(video_path):
         logger.error(f"مسیر فایل ویدیویی نامعتبر است: {video_path}")
         return None
@@ -566,8 +572,6 @@ def convert_video_quality(video_path: str, quality: str = "720p", is_audio_reque
     # اطمینان از اینکه کیفیت معتبر است
     if not quality:
         quality = "720p"  # کیفیت پیش‌فرض
-    import os
-    import subprocess
     import logging
     import time
     import multiprocessing
@@ -1363,6 +1367,60 @@ def extract_audio_from_video(video_path: str, output_format: str = 'mp3', bitrat
     # اگر همه روش‌ها شکست خوردند
     logger.error("تمام روش‌های استخراج صدا ناموفق بودند")
     return None
+
+# تابع تبدیل به کیفیت پایین‌تر
+def convert_to_lower_quality(video_path: str) -> Optional[str]:
+    """
+    تبدیل ویدیو به کیفیت پایین‌تر برای کاهش حجم
+    
+    Args:
+        video_path: مسیر فایل ویدیویی اصلی
+        
+    Returns:
+        مسیر فایل تبدیل شده یا None در صورت خطا
+    """
+    try:
+        import os
+        import subprocess
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        # تنظیم مسیر خروجی
+        file_dir = os.path.dirname(video_path)
+        file_name, file_ext = os.path.splitext(os.path.basename(video_path))
+        output_path = os.path.join(file_dir, f"{file_name}_lower_quality{file_ext}")
+        
+        # مسیر ffmpeg
+        FFMPEG_PATH = '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg'
+        
+        # دستور ffmpeg برای کاهش کیفیت
+        cmd = [
+            FFMPEG_PATH,
+            '-i', video_path,
+            '-vf', 'scale=-2:360',  # کاهش به کیفیت 360p
+            '-b:v', '800k',  # کاهش بیت‌ریت ویدیو
+            '-b:a', '96k',   # کاهش بیت‌ریت صدا
+            '-ac', '2',      # استریو
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',
+            '-movflags', '+faststart',
+            '-y',
+            output_path
+        ]
+        
+        # اجرای دستور
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        
+        if os.path.exists(output_path) and os.path.getsize(output_path) > 10240:  # حداقل 10KB
+            logger.info(f"تبدیل موفق به کیفیت پایین‌تر: {output_path}")
+            return output_path
+        else:
+            logger.error("خطا: فایل خروجی ایجاد نشد یا خالی است")
+            return None
+    except Exception as e:
+        logging.error(f"خطا در تبدیل به کیفیت پایین‌تر: {e}")
+        return None
 
 if __name__ == "__main__":
     print("ماژول telegram_fixes بارگذاری شد.")

@@ -41,6 +41,7 @@ import shutil
 import sys
 import argparse
 import traceback
+import concurrent.futures
 from datetime import datetime
 from urllib.parse import urlparse
 from typing import Dict, List, Any, Optional, Tuple, Union
@@ -2070,7 +2071,7 @@ try:
     init_db()
     
     # تنظیم متغیرهای مدیریت آمار
-    STATS_ENABLED = True
+    STATS_ENABLED = False
     download_timer = Timer()
     
     logger.info("سیستم آمار و عملکرد با موفقیت راه‌اندازی شد")
@@ -2287,6 +2288,21 @@ async def process_instagram_url(update: Update, context, url: str, status_messag
         url_id: شناسه URL (اختیاری، اگر از قبل ایجاد شده باشد)
     """
     logger.info(f"شروع پردازش URL اینستاگرام: {url[:30]}...")
+    
+    # تلاش برای بهره‌گیری از ماژول دانلودر مستقیم اینستاگرام (روش جدید و قوی‌تر)
+    try:
+        from instagram_direct_downloader import download_instagram_content
+        direct_download_available = True
+        logger.info("ماژول دانلودر پیشرفته اینستاگرام با موفقیت بارگذاری شد")
+    except ImportError:
+        direct_download_available = False
+        logger.warning("ماژول instagram_direct_downloader در دسترس نیست - استفاده از روش قدیمی")
+    except Exception as e:
+        direct_download_available = False
+        logger.warning(f"خطا در بارگذاری دانلودر مستقیم اینستاگرام: {e}")
+        
+    # تنظیم متغیر کلاس برای استفاده در هندلرهای دکمه
+    context.bot_data['direct_download_available'] = direct_download_available
     try:
         # ایجاد دانلودر اینستاگرام
         downloader = InstagramDownloader()
@@ -2919,7 +2935,23 @@ async def download_instagram(update: Update, context, url: str, option_id: str) 
     query = update.callback_query
     
     try:
-        # ایجاد دانلودر اینستاگرام
+        # بررسی امکان استفاده از ماژول دانلود مستقیم (بدون نیاز به لاگین)
+        try:
+            from instagram_direct_downloader import download_instagram_content
+            direct_download_available = True
+            logger.info("استفاده از ماژول دانلود مستقیم اینستاگرام")
+        except ImportError:
+            direct_download_available = False
+            logger.warning("ماژول instagram_direct_downloader در دسترس نیست - استفاده از روش قدیمی")
+        except Exception as e:
+            direct_download_available = False
+            logger.warning(f"خطا در بارگذاری دانلودر مستقیم اینستاگرام: {e}")
+        
+        # نام فایل دانلودی
+        output_dir = os.path.join(TEMP_DOWNLOAD_DIR, f"instagram_{int(time.time())}")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # ایجاد دانلودر اینستاگرام (فقط برای کیفیت‌ها و انتخاب)
         downloader = InstagramDownloader()
         
         # تعیین کیفیت بر اساس گزینه انتخاب شده
@@ -3003,6 +3035,61 @@ async def download_instagram(update: Update, context, url: str, option_id: str) 
 # این بخش حذف شده است زیرا بالاتر شرط option_id.isdigit وجود دارد و باعث تکرار می‌شود
             
         logger.info(f"دانلود اینستاگرام با کیفیت: {quality}, صوتی: {is_audio}")
+        
+        # اگر ماژول دانلود مستقیم در دسترس است، از آن استفاده می‌کنیم
+        if direct_download_available:
+            try:
+                # پیام وضعیت آپدیت
+                await query.edit_message_text(STATUS_MESSAGES["downloading"])
+                
+                # استفاده از دانلودر مستقیم برای دانلود با کیفیت انتخاب شده
+                logger.info(f"استفاده از ماژول دانلود مستقیم instagram_direct_downloader با کیفیت {quality}")
+                
+                # اضافه کردن مسیر مطمئن برای دایرکتوری خروجی
+                if not os.path.exists(output_dir):
+                    os.makedirs(output_dir, exist_ok=True)
+                    
+                try:
+                    # اجرای download_instagram_content در یک thread جداگانه
+                    with ThreadPoolExecutor() as executor:
+                        direct_download_task = executor.submit(download_instagram_content, url, output_dir, quality)
+                        try:
+                            downloaded_file = direct_download_task.result(timeout=90)  # 90 ثانیه تایم‌اوت - زمان بیشتر
+                        except concurrent.futures.TimeoutError:
+                            logger.error(f"تایم‌اوت در دانلود با instagram_direct_downloader پس از 90 ثانیه")
+                            downloaded_file = None
+                        except Exception as e:
+                            logger.error(f"خطا در دانلود با instagram_direct_downloader: {e}")
+                            downloaded_file = None
+                except Exception as e:
+                    logger.error(f"خطای کلی در فراخوانی instagram_direct_downloader: {e}")
+                    downloaded_file = None
+                
+                if downloaded_file and os.path.exists(downloaded_file):
+                    logger.info(f"دانلود با ماژول مستقیم موفق: {downloaded_file}")
+                    # کش کردن نتیجه برای استفاده‌های بعدی
+                    add_to_cache(f"{url}_{quality}", downloaded_file)
+                    
+                    # بررسی حجم فایل
+                    file_size = os.path.getsize(downloaded_file)
+                    if file_size < 1024: # کمتر از 1 کیلوبایت
+                        logger.warning(f"حجم فایل دانلود شده کمتر از 1KB است: {file_size} بایت")
+                        # ادامه با روش جایگزین
+                    else:
+                        # استفاده از فایل دانلود شده
+                        best_quality_file = downloaded_file
+                        # اگر کیفیت درخواستی همان best است، نیاز به تبدیل نداریم
+                        if quality == "best":
+                            # تنظیم مستقیم downloaded_file
+                            logger.info("کیفیت درخواستی best است، استفاده از فایل اصلی")
+                            return downloaded_file
+                else:
+                    logger.warning("دانلود با ماژول مستقیم ناموفق بود - استفاده از روش جایگزین")
+            except Exception as e:
+                logger.error(f"خطا در استفاده از ماژول دانلود مستقیم: {e}")
+        
+        # اگر دانلود مستقیم موفق نبود، از روش‌های جایگزین استفاده می‌کنیم
+        logger.info("استفاده از روش قدیمی دانلود")
         
         # 1. دانلود ویدیو با بهترین کیفیت
         best_quality_file = None
@@ -4920,16 +5007,12 @@ async def main():
                     try:
                         # ابتدا با بهترین کیفیت دانلود می‌کنیم
                         logger.info(f"شروع دانلود ویدیوی اینستاگرام با بهترین کیفیت برای تبدیل به {quality}")
-                        try:
-                            best_file_path = asyncio.get_event_loop().run_until_complete(
-                                instagram_dl._download_with_ytdlp(url, "", "best"))
-                        except RuntimeError:
-                            # اگر event loop در حال اجراست، از روش دیگری استفاده می‌کنیم
-                            new_loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(new_loop)
-                            best_file_path = new_loop.run_until_complete(
-                                instagram_dl._download_with_ytdlp(url, "", "best"))
-                            new_loop.close()
+                        # استفاده از ThreadPoolExecutor به جای asyncio
+                        with ThreadPoolExecutor() as executor:
+                            future = executor.submit(lambda: asyncio.run(
+                                instagram_dl._download_with_ytdlp(url, "", "best")))
+                            best_file_path = future.result(timeout=60)  # تایم‌اوت 60 ثانیه
+                            logger.info(f"دانلود با ThreadPoolExecutor: {best_file_path}")
                         
                         if best_file_path and os.path.exists(best_file_path) and os.path.getsize(best_file_path) > 0:
                             logger.info(f"ویدیو با بهترین کیفیت دانلود شد: {best_file_path}")
@@ -4971,28 +5054,28 @@ async def main():
                                     file_path = best_file_path
                         else:
                             logger.warning(f"دانلود با بهترین کیفیت ناموفق بود، تلاش مستقیم با کیفیت {quality}")
-                            # تلاش دانلود مستقیم با کیفیت درخواستی
-                            try:
-                                file_path = asyncio.get_event_loop().run_until_complete(
-                                    instagram_dl._download_with_ytdlp(url, "", quality))
-                            except RuntimeError:
-                                new_loop = asyncio.new_event_loop()
-                                asyncio.set_event_loop(new_loop)
-                                file_path = new_loop.run_until_complete(
-                                    instagram_dl._download_with_ytdlp(url, "", quality))
-                                new_loop.close()
+                            # تلاش دانلود مستقیم با کیفیت درخواستی - با ThreadPoolExecutor
+                            with ThreadPoolExecutor() as executor:
+                                try:
+                                    future = executor.submit(lambda: asyncio.run(
+                                        instagram_dl._download_with_ytdlp(url, "", quality)))
+                                    file_path = future.result(timeout=60)  # تایم‌اوت 60 ثانیه
+                                    logger.info(f"دانلود مستقیم با کیفیت {quality}: {file_path}")
+                                except Exception as e:
+                                    logger.error(f"خطا در دانلود مستقیم با کیفیت {quality}: {e}")
+                                    file_path = None
                     except Exception as e:
                         logger.error(f"خطا در روش بهبود یافته: {e}, تلاش با روش قدیمی")
-                        # روش قدیمی به عنوان پشتیبان
-                        try:
-                            file_path = asyncio.get_event_loop().run_until_complete(
-                                instagram_dl._download_with_ytdlp(url, "", quality))
-                        except RuntimeError:
-                            new_loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(new_loop)
-                            file_path = new_loop.run_until_complete(
-                                instagram_dl._download_with_ytdlp(url, "", quality))
-                            new_loop.close()
+                        # روش قدیمی به عنوان پشتیبان - با ThreadPoolExecutor
+                        with ThreadPoolExecutor() as executor:
+                            try:
+                                future = executor.submit(lambda: asyncio.run(
+                                    instagram_dl._download_with_ytdlp(url, "", quality)))
+                                file_path = future.result(timeout=60)  # تایم‌اوت 60 ثانیه
+                                logger.info(f"دانلود با روش پشتیبان: {file_path}")
+                            except Exception as e:
+                                logger.error(f"خطا در دانلود با روش پشتیبان: {e}")
+                                file_path = None
                     
                     download_time = time.time() - download_timer
                     logger.info(f"دانلود با کیفیت {quality} در {download_time:.2f} ثانیه کامل شد")
@@ -5051,6 +5134,7 @@ async def main():
                         
                         # تلاش برای تبدیل به کیفیت پایین‌تر
                         try:
+                            from telegram_fixes import convert_to_lower_quality
                             lower_quality_file = convert_to_lower_quality(file_path)
                             if lower_quality_file and os.path.exists(lower_quality_file):
                                 file_path = lower_quality_file
@@ -5228,6 +5312,7 @@ async def main():
                     
                     # تلاش برای تبدیل به کیفیت پایین‌تر
                     try:
+                        from telegram_fixes import convert_to_lower_quality
                         lower_quality_file = convert_to_lower_quality(file_path)
                         if lower_quality_file and os.path.exists(lower_quality_file):
                             file_path = lower_quality_file
