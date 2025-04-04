@@ -762,16 +762,16 @@ def method_ffmpeg_advanced(video_path: str, quality: str, target_height: int, ou
     else:
         scale_filter = f'scale=-2:{target_height}:force_original_aspect_ratio=decrease,format=yuv420p'
     
-    # بیت‌ریت مناسب برای هر کیفیت
+    # بیت‌ریت مناسب برای هر کیفیت - بهبود یافته با افزایش شدید برای حل مشکل حجم فایل‌ها
     video_bitrates = {
-        "1080p": "4000k",
-        "720p": "3500k",  # افزایش بیت‌ریت برای کیفیت بهتر
-        "480p": "1500k",  # افزایش کمی بیت‌ریت
-        "360p": "800k",   # افزایش کمی بیت‌ریت
-        "240p": "500k"    # افزایش کمی بیت‌ریت
+        "1080p": "8000k",  # بیت‌ریت بسیار بالاتر برای 1080p
+        "720p": "4500k",   # بیت‌ریت بالاتر برای 720p
+        "480p": "2500k",   # بیت‌ریت متوسط رو به بالا
+        "360p": "1500k",   # بیت‌ریت متوسط
+        "240p": "800k"     # بیت‌ریت کم
     }
     
-    video_bitrate = video_bitrates.get(quality, "2000k")
+    video_bitrate = video_bitrates.get(quality, "4000k")  # بیت‌ریت پیش‌فرض بالاتر
     
     # دستور ffmpeg فوق‌بهینه با پارامترهای تنظیم شده برای سرعت چندبرابری
     cmd = [
@@ -840,16 +840,16 @@ def method_ffmpeg_simple(video_path: str, quality: str, target_height: int, outp
     
     logger.info(f"روش ساده ffmpeg برای تبدیل به کیفیت {quality}")
     
-    # بیت‌ریت مناسب برای هر کیفیت
+    # بیت‌ریت مناسب برای هر کیفیت - بهبود یافته با افزایش شدید برای حل مشکل حجم فایل‌ها
     video_bitrates = {
-        "1080p": "4000k",
-        "720p": "3500k",  # افزایش بیت‌ریت برای کیفیت بهتر
-        "480p": "1500k",  # افزایش کمی بیت‌ریت
-        "360p": "800k",   # افزایش کمی بیت‌ریت
-        "240p": "500k"    # افزایش کمی بیت‌ریت
+        "1080p": "8000k",  # بیت‌ریت بسیار بالاتر برای 1080p
+        "720p": "4500k",   # بیت‌ریت بالاتر برای 720p
+        "480p": "2500k",   # بیت‌ریت متوسط رو به بالا
+        "360p": "1500k",   # بیت‌ریت متوسط
+        "240p": "800k"     # بیت‌ریت کم
     }
     
-    video_bitrate = video_bitrates.get(quality, "1500k")
+    video_bitrate = video_bitrates.get(quality, "3000k")  # بیت‌ریت پیش‌فرض بالاتر
     
     # دستور ffmpeg ساده‌تر با تنظیمات بهینه شده برای سرعت
     cmd = [
@@ -1061,16 +1061,16 @@ def fallback_convert_video(video_path: str, quality: str) -> str:
         file_name, file_ext = os.path.splitext(os.path.basename(video_path))
         converted_file = os.path.join(file_dir, f"{file_name}_fallback_{quality}{file_ext}")
         
-        # بیت‌ریت مناسب برای هر کیفیت در روش پشتیبان
+        # بیت‌ریت مناسب برای هر کیفیت در روش پشتیبان - بهبود یافته با افزایش بیت‌ریت
         video_bitrates = {
-            "1080p": "3500k",
-            "720p": "2000k",
-            "480p": "1000k",
-            "360p": "700k",
-            "240p": "400k"
+            "1080p": "7000k",  # بیت‌ریت بسیار بالاتر
+            "720p": "4000k",   # بیت‌ریت بالاتر
+            "480p": "2000k",   # بیت‌ریت متوسط رو به بالا
+            "360p": "1200k",   # بیت‌ریت متوسط
+            "240p": "700k"     # بیت‌ریت کم
         }
         
-        video_bitrate = video_bitrates.get(quality, "1500k")
+        video_bitrate = video_bitrates.get(quality, "3000k")  # بیت‌ریت پیش‌فرض بالاتر
         
         # فیلتر مقیاس‌بندی ساده‌تر برای کیفیت‌های پایین
         if quality in ["360p", "240p"]:
