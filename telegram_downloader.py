@@ -1878,25 +1878,33 @@ class YouTubeDownloader:
                     logger.error(f"خطا در استخراج صدا: {str(e)}")
                     return None
             else:
-                # انتخاب فرمت بر اساس گزینه کاربر با تضمین دریافت ویدیو
-                if '1080p' in format_option:
-                    format_spec = 'bestvideo[height=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080][ext=mp4]+bestaudio/best[height<=1080][ext=mp4]/best'
+                # انتخاب فرمت بر اساس گزینه کاربر با تضمین دریافت ویدیو - بهینه‌سازی شده
+                # تبدیل format_option به رشته اگر رشته نباشد
+                format_option = str(format_option) if format_option else "best"
+                
+                # ابتدا مقدار پیش‌فرض برای quality تنظیم می‌کنیم
+                quality = "best"  
+                
+                if '1080p' in format_option or '1080' in format_option:
+                    format_spec = 'best[height<=1080]/bestvideo[height<=1080]+bestaudio/best'
                     quality = '1080p'
-                elif '720p' in format_option:
-                    format_spec = 'bestvideo[height=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720][ext=mp4]+bestaudio/best[height<=720][ext=mp4]/best'
+                elif '720p' in format_option or '720' in format_option:
+                    format_spec = 'best[height<=720]/bestvideo[height<=720]+bestaudio/best'
                     quality = '720p'
-                elif '480p' in format_option:
-                    format_spec = 'bestvideo[height=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480][ext=mp4]+bestaudio/best[height<=480][ext=mp4]/best'
+                elif '480p' in format_option or '480' in format_option:
+                    format_spec = 'best[height<=480]/bestvideo[height<=480]+bestaudio/best'
                     quality = '480p'
-                elif '360p' in format_option:
-                    format_spec = 'bestvideo[height=360][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=360][ext=mp4]+bestaudio/best[height<=360][ext=mp4]/best'
+                elif '360p' in format_option or '360' in format_option:
+                    format_spec = 'best[height<=360]/bestvideo[height<=360]+bestaudio/best'
                     quality = '360p'
-                elif '240p' in format_option:
-                    format_spec = 'bestvideo[height=240][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=240][ext=mp4]+bestaudio/best[height<=240][ext=mp4]/best'
+                elif '240p' in format_option or '240' in format_option:
+                    format_spec = 'best[height<=240]/bestvideo[height<=240]+bestaudio/best'
                     quality = '240p'
                 else:
-                    format_spec = 'bestvideo+bestaudio/best[ext=mp4]/best'
+                    format_spec = 'best/bestvideo+bestaudio/bestvideo/bestaudio'
                     quality = 'best'
+                    
+                logger.info(f"استفاده از فرمت جدید {format_spec} برای دانلود اینستاگرام با کیفیت {quality}")
                     
                 logger.info(f"استفاده از فرمت {format_spec} برای دانلود یوتیوب با کیفیت {quality}")
                     

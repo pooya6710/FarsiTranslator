@@ -558,6 +558,14 @@ def convert_video_quality(video_path: str, quality: str = "720p", is_audio_reque
     Returns:
         مسیر فایل تبدیل شده یا None در صورت خطا
     """
+    # اطمینان از اینکه مسیر فایل معتبر است
+    if not video_path or not os.path.exists(video_path):
+        logger.error(f"مسیر فایل ویدیویی نامعتبر است: {video_path}")
+        return None
+        
+    # اطمینان از اینکه کیفیت معتبر است
+    if not quality:
+        quality = "720p"  # کیفیت پیش‌فرض
     import os
     import subprocess
     import logging
