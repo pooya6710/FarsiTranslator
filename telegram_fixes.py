@@ -91,7 +91,7 @@ VIDEO_QUALITY_MAP = {
         'height': 1080, 
         'width': 1920, 
         'display_name': 'کیفیت Full HD (1080p)', 
-        'ffmpeg_options': ['-vf', 'scale=-2:1080', '-b:v', '2500k'],
+        'ffmpeg_options': ['-vf', 'scale=-2:1080', '-b:v', '4000k'],
         'format_note': 'فول اچ‌دی',
         'priority': 2
     },
@@ -99,7 +99,7 @@ VIDEO_QUALITY_MAP = {
         'height': 720, 
         'width': 1280, 
         'display_name': 'کیفیت HD (720p)', 
-        'ffmpeg_options': ['-vf', 'scale=-2:720', '-b:v', '1500k'],
+        'ffmpeg_options': ['-vf', 'scale=-2:720', '-b:v', '2500k'],
         'format_note': 'اچ‌دی',
         'priority': 3
     },
