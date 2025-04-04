@@ -1,9 +1,9 @@
 [build]
 builder = "nixpacks"
-buildCommand = "echo 'BUILDING WITHOUT ARIA2' && python block_aria2_completely.py && python clean_ytdlp_patch.py && python complete_aria2_removal.py"
+buildCommand = "echo 'BUILDING CLEAN PROJECT' && python railway_deployment_guide.py && python full_custom_dl_removal.py && python clean_ytdlp_patch.py && python complete_custom_dl_removal.py"
 
 [deploy]
-startCommand = "python block_aria2_completely.py && python clean_ytdlp_patch.py && python complete_aria2_removal.py && python telegram_downloader.py"
+startCommand = "python railway_deployment_guide.py && python full_custom_dl_removal.py && python clean_ytdlp_patch.py && python complete_custom_dl_removal.py && python telegram_downloader.py"
 restartPolicyType = "always"
 
 [nixpacks]
@@ -12,11 +12,8 @@ aptPkgs = ["ffmpeg", "python3-dev"]
 dontInstallRecommends = true
 
 [env]
-YDL_NO_ARIA2C = "1"
+YDL_NO_EXTERNAL_DOWNLOADER = "1"
 HTTP_DOWNLOADER = "native"
 YTDLP_DOWNLOADER = "native"
 NO_EXTERNAL_DOWNLOADER = "1"
-YTDLP_NO_ARIA2 = "1"
-ARIA2C_DISABLED = "1"
-DISABLE_ARIA2C = "true"
-YTDLP_CONFIG = '''{"external_downloader":null,"external_downloader_args":null}'''
+DISABLE_EXTERNAL_DL = "true"

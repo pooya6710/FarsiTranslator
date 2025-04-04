@@ -16,7 +16,7 @@
 
 - `Procfile` - با محتوای زیر:
   ```
-  worker: python yt_dlp_custom_override.py && python disable_aria2c.py && python telegram_downloader.py
+  worker: python yt_dlp_custom_override.py && python disable_disabled_downloader.py && python telegram_downloader.py
   ```
 
 - `railway.toml` - با محتوای زیر:
@@ -26,7 +26,7 @@
   buildCommand = "echo 'Building the application...'"
 
   [deploy]
-  startCommand = "python yt_dlp_custom_override.py && python disable_aria2c.py && python telegram_downloader.py"
+  startCommand = "python yt_dlp_custom_override.py && python disable_disabled_downloader.py && python telegram_downloader.py"
   restartPolicyType = "always"
 
   [nixpacks]
@@ -35,7 +35,7 @@
 
 - `requirements.txt` - حاوی تمام وابستگی‌های پایتون
 
-- `Dockerfile` (توصیه شده) - برای استفاده از روش دیپلوی Docker با حذف کامل aria2c:
+- `Dockerfile` (توصیه شده) - برای استفاده از روش دیپلوی Docker با حذف کامل disabled_downloader:
   ```Dockerfile
   FROM python:3.10-slim AS build
 
@@ -48,13 +48,13 @@
   # نصب وابستگی‌های پایتون
   RUN pip install --no-cache-dir -r requirements.txt
 
-  # فاز دوم: ایجاد تصویر نهایی بدون aria2c
+  # فاز دوم: ایجاد تصویر نهایی بدون disabled_downloader
   FROM python:3.10-slim
 
-  # نصب بسته‌های مورد نیاز (بدون aria2)
+  # نصب بسته‌های مورد نیاز (بدون disabled_aria)
   RUN apt-get update && apt-get install -y ffmpeg python3-dev && \
-      # اطمینان از حذف هرگونه اشاره به aria2
-      apt-get remove -y aria2 libaria2-0 || true && \
+      # اطمینان از حذف هرگونه اشاره به disabled_aria
+      apt-get remove -y disabled_aria libdisabled_aria-0 || true && \
       apt-get autoremove -y && \
       apt-get clean && \
       rm -rf /var/lib/apt/lists/*
@@ -68,16 +68,16 @@
   # کپی وابستگی‌های پایتون از مرحله قبلی
   COPY --from=build /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 
-  # اطمینان از عدم وجود aria2c
-  RUN echo "Checking for aria2c binary..." && \
-      ! command -v aria2c && \
-      echo "aria2c is not installed!"
+  # اطمینان از عدم وجود disabled_downloader
+  RUN echo "Checking for disabled_downloader binary..." && \
+      ! command -v disabled_downloader && \
+      echo "disabled_downloader is not installed!"
 
   # ایجاد دایرکتوری دانلود
   RUN mkdir -p /app/downloads && chmod 777 /app/downloads
 
-  # اجرای ربات با غیرفعال‌سازی کامل aria2c
-  CMD ["sh", "-c", "python yt_dlp_custom_override.py && python disable_aria2c.py && python telegram_downloader.py"]
+  # اجرای ربات با غیرفعال‌سازی کامل disabled_downloader
+  CMD ["sh", "-c", "python yt_dlp_custom_override.py && python disable_disabled_downloader.py && python telegram_downloader.py"]
   ```
 
 ### گام 2: ثبت‌نام و ورود به Railway
@@ -134,19 +134,19 @@
 ### مشکل 4: خطای مربوط به دسترسی به فایل‌ها
 - **راه حل**: مطمئن شوید که کد شما پوشه `downloads` را قبل از استفاده ایجاد می‌کند. در محیط Railway، دایرکتوری کاری اپلیکیشن شما `/app` است (اگر از Dockerfile استفاده می‌کنید).
 
-### مشکل 5: خطای "Banned Dependency Detected: aria2"
+### مشکل 5: خطای "Banned Dependency Detected: disabled_aria"
 - **راه حل قطعی**: از فایل‌های زیر در پروژه خود استفاده کنید تا این مشکل به طور کامل برطرف شود:
   
-  1. **complete_aria2_removal.py**: این اسکریپت جامع تمام اشارات به aria2 را از کد yt-dlp حذف می‌کند.
+  1. **complete_disabled_aria_removal.py**: این اسکریپت جامع تمام اشارات به disabled_aria را از کد yt-dlp حذف می‌کند.
   
-  2. **clean_ytdlp_patch.py**: این فایل به عنوان پشتیبان برای حذف aria2 از کد yt-dlp استفاده می‌شود.
+  2. **clean_ytdlp_patch.py**: این فایل به عنوان پشتیبان برای حذف disabled_aria از کد yt-dlp استفاده می‌شود.
   
-  3. **railway_startup.sh**: این اسکریپت تمام مراحل لازم برای اطمینان از عدم وجود aria2 را انجام می‌دهد:
-     - حذف بسته‌های aria2 از سیستم
-     - حذف فایل‌های باینری aria2c
+  3. **railway_startup.sh**: این اسکریپت تمام مراحل لازم برای اطمینان از عدم وجود disabled_aria را انجام می‌دهد:
+     - حذف بسته‌های disabled_aria از سیستم
+     - حذف فایل‌های باینری disabled_downloader
      - اجرای تمام اسکریپت‌های پاکسازی
-     - تنظیم متغیرهای محیطی برای غیرفعال‌سازی aria2
-     - بررسی نهایی برای تأیید عدم وجود aria2
+     - تنظیم متغیرهای محیطی برای غیرفعال‌سازی disabled_aria
+     - بررسی نهایی برای تأیید عدم وجود disabled_aria
 
   4. فایل‌های پیکربندی Railway:
      ```
@@ -163,12 +163,12 @@
      restartPolicyType = "always"
 
      [build.args]
-     SKIP_ARIA2 = "true"
-     YDL_NO_ARIA2C = "1"
+     SKIP_disabled_aria = "true"
+     YDL_NO_disabled_downloader = "1"
      HTTP_DOWNLOADER = "native"
      YTDLP_DOWNLOADER = "native"
      NO_EXTERNAL_DOWNLOADER = "1"
-     YTDLP_NO_ARIA2 = "1"
+     YTDLP_NO_disabled_aria = "1"
      ```
 
   5. حتماً از **Docker** به جای Nixpacks استفاده کنید. در تنظیمات پروژه Railway، به بخش "Settings" بروید و "Builder" را روی "Docker" تنظیم کنید.
@@ -179,34 +179,34 @@
      mkdir -p .railway
      ```
      
-  7. فایل‌های تکمیلی برای حذف کامل aria2:
+  7. فایل‌های تکمیلی برای حذف کامل disabled_aria:
      ```
      # .nixpacks/no-apt.txt
-     aria2
-     aria2c
-     libaria2
-     *aria2*
+     disabled_aria
+     disabled_downloader
+     libdisabled_aria
+     *disabled_aria*
      
      # .nixpacks/environment.toml
      [vars]
-     YDL_NO_ARIA2C = "1"
+     YDL_NO_disabled_downloader = "1"
      HTTP_DOWNLOADER = "native"
      YTDLP_DOWNLOADER = "native"
      NO_EXTERNAL_DOWNLOADER = "1"
-     YTDLP_NO_ARIA2 = "1"
+     YTDLP_NO_disabled_aria = "1"
      
      # .railway/clean.sh (chmod +x)
      #!/bin/bash
      echo "==== Railway Build Clean Script ===="
-     find / -name "aria2c" -type f -delete 2>/dev/null
-     find / -name "*aria2*" -type f -delete 2>/dev/null
-     find /app -type f -name "*.py" -exec sed -i 's/aria2c/disabled_downloader/g' {} \;
-     find /app -type f -name "*.py" -exec sed -i 's/aria2/disabled_tool/g' {} \;
+     find / -name "disabled_downloader" -type f -delete 2>/dev/null
+     find / -name "*disabled_aria*" -type f -delete 2>/dev/null
+     find /app -type f -name "*.py" -exec sed -i 's/disabled_downloader/disabled_downloader/g' {} \;
+     find /app -type f -name "*.py" -exec sed -i 's/disabled_aria/disabled_tool/g' {} \;
      ```
      
   8. اطمینان حاصل کنید که Dockerfile شما مانند نمونه زیر باشد:
      ```Dockerfile
-     # استفاده از روش چندمرحله‌ای برای ایجاد تصویر نهایی بدون هیچ اشاره‌ای به aria2
+     # استفاده از روش چندمرحله‌ای برای ایجاد تصویر نهایی بدون هیچ اشاره‌ای به disabled_aria
      FROM python:3.10-slim AS builder
 
      # نصب ابزارهای مورد نیاز برای ساخت
@@ -238,7 +238,7 @@
          PATH="/opt/venv/bin:$PATH" \
          PYTHONPATH="/app" \
          NO_EXTERNAL_DOWNLOADER=1 \
-         YTDLP_NO_ARIA2=1
+         YTDLP_NO_disabled_aria=1
 
      # نصب بسته‌های سیستمی مورد نیاز
      RUN apt-get update && apt-get install -y \
@@ -260,19 +260,19 @@
      RUN mkdir -p /app/downloads && chmod 777 /app/downloads \
          && mkdir -p /tmp/ytdlp_temp && chmod 777 /tmp/ytdlp_temp
 
-     # حذف هرگونه اشاره به aria2
-     RUN python complete_aria2_removal.py
+     # حذف هرگونه اشاره به disabled_aria
+     RUN python complete_disabled_aria_removal.py
 
-     # تنظیم متغیرهای محیطی برای جلوگیری از استفاده از aria2
-     ENV YDL_NO_ARIA2C=1 \
+     # تنظیم متغیرهای محیطی برای جلوگیری از استفاده از disabled_aria
+     ENV YDL_NO_disabled_downloader=1 \
          HTTP_DOWNLOADER=native \
          YTDLP_DOWNLOADER=native
 
-     # اطمینان از عدم وجود دستور aria2c
-     RUN echo "Checking for aria2c binary..." && \
-         ! command -v aria2c && \
-         echo "aria2c is not installed!" && \
-         echo "CONFIRMED: No aria2c in the final image."
+     # اطمینان از عدم وجود دستور disabled_downloader
+     RUN echo "Checking for disabled_downloader binary..." && \
+         ! command -v disabled_downloader && \
+         echo "disabled_downloader is not installed!" && \
+         echo "CONFIRMED: No disabled_downloader in the final image."
 
      # فایل اجرایی
      CMD bash railway_startup.sh

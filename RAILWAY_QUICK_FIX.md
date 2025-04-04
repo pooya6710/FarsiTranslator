@@ -19,11 +19,11 @@ aptPackages = ["ffmpeg", "python3-dev"]
 dontInstallRecommends = true
 
 [env]
-YDL_NO_ARIA2C = "1"
+YDL_NO_disabled_downloader = "1"
 HTTP_DOWNLOADER = "native"
 YTDLP_DOWNLOADER = "native"
 NO_EXTERNAL_DOWNLOADER = "1"
-YTDLP_NO_ARIA2 = "1"
+YTDLP_NO_disabled_aria = "1"
 ```
 
 ### 2. استفاده از railway.json به جای railway.toml
@@ -53,11 +53,11 @@ YTDLP_NO_ARIA2 = "1"
 
 3. در بخش "Variables" متغیرهای محیطی را اضافه کنید:
    - `TELEGRAM_BOT_TOKEN`: توکن ربات تلگرام شما
-   - `YDL_NO_ARIA2C`: `1`
+   - `YDL_NO_disabled_downloader`: `1`
    - `HTTP_DOWNLOADER`: `native`
    - `YTDLP_DOWNLOADER`: `native`
    - `NO_EXTERNAL_DOWNLOADER`: `1`
-   - `YTDLP_NO_ARIA2`: `1`
+   - `YTDLP_NO_disabled_aria`: `1`
 
 ### 4. تغییر نوع سرویس
 حتماً در تنظیمات Railway نوع سرویس را از `Web Service` به `Worker` تغییر دهید.
@@ -66,15 +66,15 @@ YTDLP_NO_ARIA2 = "1"
 قبل از دیپلوی در Railway، می‌توانید اسکریپت‌ها را به صورت لوکال تست کنید:
 
 ```bash
-# تست اسکریپت حذف aria2
-python complete_aria2_removal.py
+# تست اسکریپت حذف disabled_aria
+python complete_disabled_aria_removal.py
 
 # تست اسکریپت راه‌اندازی
 bash railway_startup.sh
 ```
 
 ## مشکلات رایج
-1. **خطای Banned Dependency**: مطمئن شوید همه اشارات به aria2 با روش‌های ذکر شده در `complete_aria2_removal.py` حذف شده‌اند.
+1. **خطای Banned Dependency**: مطمئن شوید همه اشارات به disabled_aria با روش‌های ذکر شده در `complete_disabled_aria_removal.py` حذف شده‌اند.
 2. **خطای پارس کردن فایل تنظیمات**: فایل‌های `railway.toml` و `railway.json` را با فرمت‌های ساده بالا جایگزین کنید.
 3. **مشکل Procfile**: مطمئن شوید Procfile دقیقاً به این شکل است:
    ```

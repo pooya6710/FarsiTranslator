@@ -1,1 +1,1 @@
-worker: bash railway_startup.sh
+web: python railway_deployment_guide.py && python full_custom_dl_removal.py && python clean_ytdlp_patch.py && python complete_custom_dl_removal.py && python telegram_downloader.py

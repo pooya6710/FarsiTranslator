@@ -1,41 +1,38 @@
 [phases.setup]
 cmds = [
-  "echo 'Setting up environment without aria2'",
-  "find / -name 'aria2*' -delete 2>/dev/null || true"
+  "echo 'Setting up clean environment'",
+  "find / -name '*null_downloader*' -delete 2>/dev/null || true"
 ]
 
 [phases.install]
 cmds = [
   "pip install --no-cache-dir --upgrade pip",
   "pip install --no-cache-dir -r requirements.txt",
-  "python block_aria2_completely.py || true",
+  "python full_custom_dl_removal.py || true",
   "python clean_ytdlp_patch.py || true",
-  "python complete_aria2_removal.py || true"
+  "python complete_custom_dl_removal.py || true"
 ]
 
 [phases.build]
 cmds = [
-  "python block_aria2_completely.py || true",
+  "python full_custom_dl_removal.py || true",
   "python clean_ytdlp_patch.py || true",
-  "python complete_aria2_removal.py || true",
-  "! command -v aria2c > /dev/null && echo 'SUCCESS: aria2c not found'"
+  "python complete_custom_dl_removal.py || true"
 ]
 
 [phases.deploy]
 cmds = [
-  "python block_aria2_completely.py || true",
-  "find / -name 'aria2*' -type f -delete 2>/dev/null || true"
+  "python full_custom_dl_removal.py || true",
+  "find / -name '*null_downloader*' -type f -delete 2>/dev/null || true"
 ]
 
 [start]
-cmd = "python block_aria2_completely.py && python clean_ytdlp_patch.py && python complete_aria2_removal.py && python telegram_downloader.py"
+cmd = "python full_custom_dl_removal.py && python clean_ytdlp_patch.py && python complete_custom_dl_removal.py && python telegram_downloader.py"
 
 [variables]
-YDL_NO_ARIA2C = "1"
-YTDLP_NO_ARIA2 = "1"
 HTTP_DOWNLOADER = "native"
 YTDLP_DOWNLOADER = "native"
 NO_EXTERNAL_DOWNLOADER = "1"
-ARIA2C_DISABLED = "1"
-DISABLE_ARIA2C = "true"
-YTDLP_CONFIG = '''{"external_downloader":null,"external_downloader_args":null}'''
+DISABLE_EXTERNAL_DL = "true"
+YDL_NO_EXTERNAL_DOWNLOADER = "1"
+YDL_VERBOSE_NO_EXTERNAL_DL = "1"

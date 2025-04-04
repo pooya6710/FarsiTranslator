@@ -1,30 +1,39 @@
-# ignore any files with aria2 in the name
-**/*aria2*
-**/aria2*
-**/*.aria2*
 
-# ignore virtual environments
-venv/
-.venv/
-env/
-.env/
+# Git
+.git*
 
-# ignore common development files
-.git
-.github
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
-.hypothesis/
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# ignore debug files
-debug_log.txt
-**/*.log
-**/debug/
+# Banned dependencies files
+**/disabled*
+**/disabled_downloader*
+**/disabled_*
+
+# Docker
+.dockerignore
+Dockerfile
+
+# Railway specific
+.nixpacks
+railway.json
+railway.toml

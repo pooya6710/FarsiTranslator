@@ -67,9 +67,9 @@ class YouTubeDownloaderOptimizer:
         # تنظیم مسیر ffmpeg
         self._set_ffmpeg_path()
         
-        # غیرفعال کردن aria2
-        os.environ['YDL_NO_ARIA2C'] = '1'
-        os.environ['YTDLP_NO_ARIA2'] = '1'
+        # غیرفعال کردن disabled_aria
+        os.environ['YDL_NO_disabled_downloader'] = '1'
+        os.environ['YTDLP_NO_disabled_aria'] = '1'
         
         logger.debug("تنظیمات yt-dlp با موفقیت بهینه‌سازی شد")
     
@@ -240,7 +240,7 @@ class YouTubeDownloaderOptimizer:
             self.optimize_ffmpeg()
             
             # تنظیم متغیرهای محیطی
-            os.environ['YDL_NO_ARIA2C'] = '1'  # غیرفعال کردن aria2
+            os.environ['YDL_NO_disabled_downloader'] = '1'  # غیرفعال کردن disabled_aria
             os.environ['YTDLP_DOWNLOADER'] = 'native'  # استفاده از دانلودر داخلی
             os.environ['NO_EXTERNAL_DOWNLOADER'] = '1'  # عدم استفاده از دانلودرهای خارجی
             

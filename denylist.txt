@@ -1,0 +1,6 @@
+# کلمات کلیدی ممنوع
+aria2c
+aria2
+Aria2
+ar1a2
+a_r_i_a_2

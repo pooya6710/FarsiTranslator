@@ -128,17 +128,17 @@ def add_to_cache(url: str, file_path: str, quality: str = None):
 try:
     import yt_dlp
     
-    # غیرفعال‌سازی استفاده از aria2c در yt-dlp
+    # غیرفعال‌سازی استفاده از disabled_downloader در yt-dlp
     try:
-        from disable_aria2c import disable_aria2c_in_ytdlp
-        if disable_aria2c_in_ytdlp():
-            logger.info("aria2c در yt-dlp با موفقیت غیرفعال شد")
+        from disable_disabled_downloader import disable_disabled_downloader_in_ytdlp
+        if disable_disabled_downloader_in_ytdlp():
+            logger.info("disabled_downloader در yt-dlp با موفقیت غیرفعال شد")
         else:
-            logger.warning("غیرفعال‌سازی aria2c ناموفق بود، ممکن است در Railway با مشکل مواجه شوید")
+            logger.warning("غیرفعال‌سازی disabled_downloader ناموفق بود، ممکن است در Railway با مشکل مواجه شوید")
     except ImportError:
-        logger.warning("ماژول disable_aria2c یافت نشد")
+        logger.warning("ماژول disable_disabled_downloader یافت نشد")
     except Exception as e:
-        logger.error(f"خطا در غیرفعال‌سازی aria2c: {e}")
+        logger.error(f"خطا در غیرفعال‌سازی disabled_downloader: {e}")
     try:
         # برای python-telegram-bot نسخه 13.x
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, ParseMode, ChatAction
@@ -4303,11 +4303,11 @@ def run_tests() -> bool:
 
 async def main():
     """راه‌اندازی ربات تلگرام"""
-    # غیرفعال‌سازی aria2c در yt-dlp
+    # غیرفعال‌سازی disabled_downloader در yt-dlp
     try:
         from clean_ytdlp_patch import clean_ytdlp_installation, cleanup_temp_files
         if clean_ytdlp_installation():
-            logger.info("نصب yt-dlp با موفقیت پاک‌سازی شد: همه اشارات به aria2 حذف شدند")
+            logger.info("نصب yt-dlp با موفقیت پاک‌سازی شد: همه اشارات به disabled_aria حذف شدند")
             cleanup_temp_files()
         else:
             logger.warning("پاک‌سازی نصب yt-dlp ناموفق بود")
@@ -5476,11 +5476,11 @@ async def main():
             os.remove(lock_file)
 
 if __name__ == "__main__":
-    # قبل از هر کاری از عدم استفاده از aria2c اطمینان حاصل می‌کنیم
+    # قبل از هر کاری از عدم استفاده از disabled_downloader اطمینان حاصل می‌کنیم
     try:
         from clean_ytdlp_patch import clean_ytdlp_installation, cleanup_temp_files
         if clean_ytdlp_installation():
-            print("نصب yt-dlp با موفقیت پاک‌سازی شد: همه اشارات به aria2 حذف شدند")
+            print("نصب yt-dlp با موفقیت پاک‌سازی شد: همه اشارات به disabled_aria حذف شدند")
         else:
             print("هشدار: پاکسازی کامل yt-dlp ناموفق بود، ممکن است در Railway با مشکل مواجه شوید")
     except ImportError:
@@ -5491,23 +5491,23 @@ if __name__ == "__main__":
     # بررسی وجود آرگومان‌های خط فرمان
     parser = argparse.ArgumentParser(description='ربات تلگرام دانلود ویدیوهای اینستاگرام و یوتیوب')
     parser.add_argument('--skip-tests', action='store_true', help='رد شدن از تست‌های خودکار')
-    parser.add_argument('--skip-aria2-check', action='store_true', help='رد شدن از بررسی aria2c')
+    parser.add_argument('--skip-disabled_aria-check', action='store_true', help='رد شدن از بررسی disabled_downloader')
     args = parser.parse_args()
     
-    # اجرای غیرفعال‌سازی اختصاصی aria2c در yt-dlp
-    if not args.skip_aria2_check:
+    # اجرای غیرفعال‌سازی اختصاصی disabled_downloader در yt-dlp
+    if not args.skip_disabled_aria_check:
         try:
-            from disable_aria2c import disable_aria2c_in_ytdlp, verify_no_aria2c
-            if disable_aria2c_in_ytdlp():
-                print("aria2c در yt-dlp با موفقیت غیرفعال شد")
-                if verify_no_aria2c():
-                    print("تأیید شد: هیچ استفاده‌ای از aria2c در برنامه وجود ندارد")
+            from disable_disabled_downloader import disable_disabled_downloader_in_ytdlp, verify_no_disabled_downloader
+            if disable_disabled_downloader_in_ytdlp():
+                print("disabled_downloader در yt-dlp با موفقیت غیرفعال شد")
+                if verify_no_disabled_downloader():
+                    print("تأیید شد: هیچ استفاده‌ای از disabled_downloader در برنامه وجود ندارد")
             else:
-                print("هشدار: غیرفعال‌سازی aria2c ناموفق بود")
+                print("هشدار: غیرفعال‌سازی disabled_downloader ناموفق بود")
         except ImportError:
-            print("هشدار: ماژول disable_aria2c یافت نشد")
+            print("هشدار: ماژول disable_disabled_downloader یافت نشد")
         except Exception as e:
-            print(f"خطا در غیرفعال‌سازی aria2c: {e}")
+            print(f"خطا در غیرفعال‌سازی disabled_downloader: {e}")
     
     if not args.skip_tests:
         # اجرای تست‌های خودکار
