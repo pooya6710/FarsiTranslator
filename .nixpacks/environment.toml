@@ -1,4 +1,3 @@
-
 [phases.setup]
 cmds = [
   "echo 'Setting up environment without aria2'",
@@ -39,4 +38,4 @@ YTDLP_DOWNLOADER = "native"
 NO_EXTERNAL_DOWNLOADER = "1"
 ARIA2C_DISABLED = "1"
 DISABLE_ARIA2C = "true"
-YTDLP_CONFIG = "{"external_downloader":null,"external_downloader_args":null}"
+YTDLP_CONFIG = '''{"external_downloader":null,"external_downloader_args":null}'''

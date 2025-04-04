@@ -8,8 +8,7 @@ ENV YDL_NO_ARIA2C=1 \
     NO_EXTERNAL_DOWNLOADER=1 \
     YTDLP_NO_ARIA2=1 \
     ARIA2C_DISABLED=1 \
-    DISABLE_ARIA2C=true \
-    YTDLP_CONFIG='{"external_downloader":null,"external_downloader_args":null}'
+    DISABLE_ARIA2C=true
 
 # نصب ابزارهای مورد نیاز برای ساخت (بدون نصب aria2)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -54,8 +53,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HTTP_DOWNLOADER=native \
     YTDLP_DOWNLOADER=native \
     ARIA2C_DISABLED=1 \
-    DISABLE_ARIA2C=true \
-    YTDLP_CONFIG='{"external_downloader":null,"external_downloader_args":null}'
+    DISABLE_ARIA2C=true
 
 # نصب بسته‌های سیستمی مورد نیاز (بدون نصب aria2)
 RUN apt-get update && apt-get install -y --no-install-recommends \
