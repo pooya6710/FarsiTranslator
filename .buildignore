@@ -1,14 +1,8 @@
-# Ignore files with aria2 in the name
-**/*aria2*
-**/aria2*
-aria2*
-*aria2*
 
-# Ignored directories
-.git
-.github
-__pycache__/
-venv/
-.venv/
-env/
-.env/
+**/aria2*
+**/aria2c*
+**/aria2.*
+**/*aria2*
+**/aria*2*
+**/Aria2*
+**/ARIA2*

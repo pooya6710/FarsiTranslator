@@ -1,7 +1,42 @@
-[vars]
+
+[phases.setup]
+cmds = [
+  "echo 'Setting up environment without aria2'",
+  "find / -name 'aria2*' -delete 2>/dev/null || true"
+]
+
+[phases.install]
+cmds = [
+  "pip install --no-cache-dir --upgrade pip",
+  "pip install --no-cache-dir -r requirements.txt",
+  "python block_aria2_completely.py || true",
+  "python clean_ytdlp_patch.py || true",
+  "python complete_aria2_removal.py || true"
+]
+
+[phases.build]
+cmds = [
+  "python block_aria2_completely.py || true",
+  "python clean_ytdlp_patch.py || true",
+  "python complete_aria2_removal.py || true",
+  "! command -v aria2c > /dev/null && echo 'SUCCESS: aria2c not found'"
+]
+
+[phases.deploy]
+cmds = [
+  "python block_aria2_completely.py || true",
+  "find / -name 'aria2*' -type f -delete 2>/dev/null || true"
+]
+
+[start]
+cmd = "python block_aria2_completely.py && python clean_ytdlp_patch.py && python complete_aria2_removal.py && python telegram_downloader.py"
+
+[variables]
 YDL_NO_ARIA2C = "1"
+YTDLP_NO_ARIA2 = "1"
 HTTP_DOWNLOADER = "native"
 YTDLP_DOWNLOADER = "native"
 NO_EXTERNAL_DOWNLOADER = "1"
-YTDLP_NO_ARIA2 = "1"
-SKIP_ARIA2 = "true"
+ARIA2C_DISABLED = "1"
+DISABLE_ARIA2C = "true"
+YTDLP_CONFIG = "{"external_downloader":null,"external_downloader_args":null}"

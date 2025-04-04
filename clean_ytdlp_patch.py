@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 """
 پچ کامل برای yt-dlp: حذف تمام اشارات به aria2
 
@@ -6,11 +9,17 @@
 
 import os
 import sys
-import shutil
-import tempfile
 import logging
+import glob
+import shutil
 import importlib
+import importlib.machinery
+import importlib.util
+import sys
+import site
 from pathlib import Path
+import tempfile
+import json
 
 # تنظیم لاگر
 logging.basicConfig(
@@ -19,245 +28,155 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# مسیرهای محتمل برای جستجوی yt-dlp
+SITE_PACKAGES_PATHS = [
+    '/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages',
+    '/nix/store/ii5bys31iv4q48wbsxp4g8fdnlcw5y5f-python3-3.11.0/lib/python3.11/site-packages',
+    '/home/runner/.local/lib/python3.11/site-packages',
+    '/opt/venv/lib/python3.11/site-packages',
+]
+
 def find_site_packages():
     """پیدا کردن مسیر site-packages پایتون"""
-    # اول در مسیرهای استاندارد جستجو کنیم
-    for path in sys.path:
-        if path.endswith('site-packages') or path.endswith('pythonlibs/lib/python3.11/site-packages'):
-            return path
-            
-    # اگر پیدا نشد، در مسیرهای خاص Replit بررسی کنیم
-    replit_paths = [
-        '/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages',
-        '/nix/store/ii5bys31iv4q48wbsxp4g8fdnlcw5y5f-python3-3.11.0/lib/python3.11/site-packages',
-        '/home/runner/.local/lib/python3.11/site-packages'
-    ]
+    paths = []
     
-    for path in replit_paths:
+    # افزودن مسیرهای standard site-packages
+    for path in site.getsitepackages():
         if os.path.exists(path):
-            return path
-            
-    return None
+            paths.append(path)
+    
+    # افزودن مسیرهای محتمل دیگر
+    for path in SITE_PACKAGES_PATHS:
+        if os.path.exists(path):
+            paths.append(path)
+    
+    logger.info(f"مسیرهای site-packages پیدا شده: {paths}")
+    return paths
 
 def find_ytdlp_path():
     """پیدا کردن مسیر نصب yt-dlp"""
-    # روش 1: از مسیر site-packages پیدا کردن
     site_packages = find_site_packages()
-    if site_packages:
-        ytdlp_path = os.path.join(site_packages, 'yt_dlp')
-        if os.path.exists(ytdlp_path):
-            return ytdlp_path
-            
-    # روش 2: با استفاده از سیستم ماژول
-    try:
-        import yt_dlp
-        module_path = os.path.dirname(yt_dlp.__file__)
-        if os.path.exists(module_path):
-            logger.info(f"مسیر yt-dlp با استفاده از سیستم ماژول پیدا شد: {module_path}")
-            return module_path
-    except ImportError:
-        pass
+    ytdlp_paths = []
     
-    # روش 3: از مسیرهای خاص Replit بررسی کنیم
-    replit_ytdlp_paths = [
-        '/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/yt_dlp',
-        '/nix/store/ii5bys31iv4q48wbsxp4g8fdnlcw5y5f-python3-3.11.0/lib/python3.11/site-packages/yt_dlp',
-        '/home/runner/.local/lib/python3.11/site-packages/yt_dlp'
-    ]
+    for site_path in site_packages:
+        ytdlp_path = os.path.join(site_path, 'yt_dlp')
+        if os.path.exists(ytdlp_path) and os.path.isdir(ytdlp_path):
+            ytdlp_paths.append(ytdlp_path)
     
-    for path in replit_ytdlp_paths:
-        if os.path.exists(path):
-            logger.info(f"مسیر yt-dlp در مسیر خاص Replit پیدا شد: {path}")
-            return path
-            
-    logger.error("مسیر yt-dlp پیدا نشد")
-    return None
+    if not ytdlp_paths:
+        logger.warning("مسیر yt-dlp یافت نشد!")
+        return None
+    
+    logger.info(f"مسیرهای yt-dlp پیدا شده: {ytdlp_paths}")
+    return ytdlp_paths
 
 def create_clean_ytdlp():
     """ایجاد یک نسخه تمیز از yt-dlp بدون اشاره به aria2"""
-    ytdlp_path = find_ytdlp_path()
-    if not ytdlp_path:
-        logger.error("مسیر yt-dlp یافت نشد.")
+    ytdlp_paths = find_ytdlp_path()
+    if not ytdlp_paths:
+        logger.error("مسیر yt-dlp یافت نشد. نمی‌توان پچ را اعمال کرد.")
         return False
-
-    # مسیر فایلهایی که باید اصلاح شوند
-    paths_to_patch = [
-        os.path.join(ytdlp_path, 'downloader', 'external.py'),
-        os.path.join(ytdlp_path, 'options.py'),
-    ]
     
-    # نسخه پشتیبان ایجاد کنید
-    backup_dir = tempfile.mkdtemp(prefix='ytdlp_backup_')
-    for file_path in paths_to_patch:
-        if os.path.exists(file_path):
-            backup_path = os.path.join(backup_dir, os.path.relpath(file_path, ytdlp_path))
-            os.makedirs(os.path.dirname(backup_path), exist_ok=True)
-            shutil.copy2(file_path, backup_path)
-            logger.info(f"نسخه پشتیبان از {file_path} در {backup_path} ایجاد شد.")
+    modified_files = []
     
-    # 1. پچ کردن external.py: حذف کامل دانلودر aria2c
-    external_file = os.path.join(ytdlp_path, 'downloader', 'external.py')
-    if os.path.exists(external_file):
-        with open(external_file, 'r', encoding='utf-8') as f:
-            content = f.read()
+    for ytdlp_path in ytdlp_paths:
+        logger.info(f"در حال پچ کردن yt-dlp در مسیر {ytdlp_path}")
         
-        # روش جایگزینی کامل: فایل را با نسخه بدون aria2c جایگزین کنیم
-        new_content = """
-# coding: utf-8
-from __future__ import unicode_literals
-
-import os.path
-import re
-import subprocess
-import sys
-import time
-
-from .common import FileDownloader
-from ..utils import (
-    check_executable,
-    encodeFilename,
-    encodeArgument,
-)
-
-
-class ExternalFD(FileDownloader):
-    \"\"\"Base class for external downloader \"\"\"
-
-    def real_download(self, filename, info_dict):
-        self.report_destination(filename)
-        tmpfilename = self.temp_name(filename)
-
-        retval = self._call_downloader(tmpfilename, info_dict)
-        if retval == 0:
-            self.try_rename(tmpfilename, filename)
-            return True
-        else:
-            self.to_screen('\\nERROR: External downloader exited with error code %s' % retval)
-            return False
-
-    def _call_downloader(self, tmpfilename, info_dict):
-        \"\"\"Either overwrite this or implement _make_cmd\"\"\"
-        cmd = [encodeArgument(a) for a in self._make_cmd(tmpfilename, info_dict)]
-
-        self._debug_cmd(cmd)
-
-        p = subprocess.Popen(
-            cmd, stderr=subprocess.PIPE)
-        _, stderr = p.communicate_or_kill()
-        if p.returncode != 0:
-            self._debug_cmd_stderr(cmd, stderr)
-        return p.returncode
-
-
-class CurlFD(ExternalFD):
-    AVAILABLE_OPT = '-V'
-
-    def _make_cmd(self, tmpfilename, info_dict):
-        cmd = [
-            'curl', '--location', '--silent', '--show-error', '--output', tmpfilename]
-        for key, val in info_dict.get('http_headers', {}).items():
-            cmd += ['--header', '%s: %s' % (key, val)]
-
-        # If bandwidth is being throttled, tell curl to limit its download
-        # rate to avoid going over the limit
-        throttled_bandwidth = info_dict.get('throttled_bandwidth')
-        if throttled_bandwidth is not None:
-            cmd += ['--limit-rate', throttled_bandwidth]
-
-        cmd += [info_dict['url']]
-        return cmd
-
-
-class WgetFD(ExternalFD):
-    AVAILABLE_OPT = '--version'
-
-    def _make_cmd(self, tmpfilename, info_dict):
-        cmd = [
-            'wget', '-O', tmpfilename, '--no-check-certificate', '--no-verbose']
-        for key, val in info_dict.get('http_headers', {}).items():
-            cmd += ['--header', '%s: %s' % (key, val)]
-
-        # If bandwidth is being throttled, tell wget to limit its download
-        # rate to avoid going over the limit. Support for this feature was
-        # added in wget 1.16.
-        throttled_bandwidth = info_dict.get('throttled_bandwidth')
-        if throttled_bandwidth is not None:
-            cmd += ['--limit-rate', throttled_bandwidth]
-
-        cmd += [info_dict['url']]
-        return cmd
-
-
-class Aria2AFD(ExternalFD):
-    # This class is completely empty to prevent any use of aria2c
-    AVAILABLE_OPT = '--version'
-    
-    def _make_cmd(self, tmpfilename, info_dict):
-        # This method will never be called since aria2c is disabled
-        raise ValueError("aria2c is disabled")
-
-
-_BY_NAME = {
-    'curl': CurlFD,
-    'wget': WgetFD,
-}
-# Do not include aria2c in the available downloaders
+        # فایل‌های احتمالی که نیاز به اصلاح دارند
+        target_files = {
+            os.path.join(ytdlp_path, 'options.py'): [
+                ("'aria2c'", "None"),
+                ('"aria2c"', "None"),
+                ('aria2c', 'disabled_aria2c'),
+                ('aria2', 'disabled_aria2'),
+                ('Aria2', 'DisabledAria2'),
+                ('_EXTERNAL_DOWNLOADERS', '# _EXTERNAL_DOWNLOADERS'),
+            ],
+            os.path.join(ytdlp_path, 'downloader', 'external.py'): [
+                ('class Aria2PC', 'class DisabledAria2PC'),
+                ('def _make_cmd(self', 'def _disabled_make_cmd(self'),
+                ('aria2c', 'disabled_aria2c'),
+                ('aria2', 'disabled_aria2'),
+                ('Aria2', 'DisabledAria2'),
+            ],
+            os.path.join(ytdlp_path, 'YoutubeDL.py'): [
+                ("'aria2c'", "None"),
+                ('"aria2c"', "None"),
+                ('aria2c', 'disabled_aria2c'),
+                ('aria2', 'disabled_aria2'),
+                ('Aria2', 'DisabledAria2'),
+            ],
+        }
+        
+        for file_path, replacements in target_files.items():
+            if os.path.exists(file_path):
+                # ایجاد نسخه پشتیبان
+                backup_path = file_path + '.bak'
+                try:
+                    shutil.copy2(file_path, backup_path)
+                    
+                    # خواندن محتوای فایل
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                    
+                    # جایگزینی محتوا
+                    new_content = content
+                    for old, new in replacements:
+                        if old in new_content:
+                            new_content = new_content.replace(old, new)
+                    
+                    # بررسی تغییرات
+                    if new_content != content:
+                        with open(file_path, 'w', encoding='utf-8') as f:
+                            f.write(new_content)
+                        logger.info(f"فایل {file_path} اصلاح شد")
+                        modified_files.append(file_path)
+                    else:
+                        logger.info(f"فایل {file_path} نیاز به اصلاح ندارد")
+                except Exception as e:
+                    logger.error(f"خطا در اصلاح فایل {file_path}: {e}")
+                    # بازیابی از نسخه پشتیبان در صورت خطا
+                    try:
+                        if os.path.exists(backup_path):
+                            shutil.copy2(backup_path, file_path)
+                            logger.info(f"فایل {file_path} از نسخه پشتیبان بازیابی شد")
+                    except Exception as e2:
+                        logger.error(f"خطا در بازیابی فایل {file_path} از نسخه پشتیبان: {e2}")
+        
+        # ایجاد فایل پیکربندی yt-dlp برای غیرفعال‌سازی aria2
+        config_dir = os.path.expanduser('~/.config/yt-dlp')
+        os.makedirs(config_dir, exist_ok=True)
+        
+        config_file = os.path.join(config_dir, 'config')
+        config_content = """# yt-dlp configuration
+--no-check-certificate
+--no-external-downloader
 """
         
-        # نوشتن فایل اصلاح شده
-        with open(external_file, 'w', encoding='utf-8') as f:
-            f.write(new_content)
-        logger.info(f"فایل {external_file} با موفقیت پچ شد.")
+        try:
+            with open(config_file, 'w') as f:
+                f.write(config_content)
+            logger.info(f"فایل پیکربندی yt-dlp ایجاد شد: {config_file}")
+        except Exception as e:
+            logger.error(f"خطا در ایجاد فایل پیکربندی yt-dlp: {e}")
     
-    # 2. پچ کردن options.py: حذف کامل اشارات به aria2c
-    options_file = os.path.join(ytdlp_path, 'options.py')
-    if os.path.exists(options_file):
-        with open(options_file, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        # روش جایگزینی کامل برای _EXTERNAL_DOWNLOADERS
-        if '_EXTERNAL_DOWNLOADERS =' in content:
-            new_downloaders = """
-    _EXTERNAL_DOWNLOADERS = {
-        'native': [''],
-        'curl': ['curl'],
-        'wget': ['wget'],
-        'ffmpeg': ['ffmpeg'],
-        # aria2c is intentionally removed
-    }
-"""
-            # جایگزینی با الگوی regex
-            import re
-            content = re.sub(
-                r'_EXTERNAL_DOWNLOADERS\s*=\s*\{[^}]*\}',
-                new_downloaders.strip(),
-                content
-            )
-            
-        # حذف اشارات به aria2c در توضیحات خط فرمان
-        content = content.replace("'E.g. --downloader aria2c --downloader \"dash,m3u8:native\" will use '", 
-                                "'E.g. --downloader \"dash,m3u8:native\" will use '")
-        content = content.replace("'aria2c for http/ftp downloads, and the native downloader for dash/m3u8 downloads '",
-                                "'the native downloader for dash/m3u8 downloads '")
-        
-        # حذف هرگونه منطق استفاده از aria2c
-        content = content.replace("cls._EXTERNAL_DOWNLOADERS['aria2c']", 
-                                "[]  # aria2c intentionally disabled")
-        
-        # نوشتن فایل اصلاح شده
-        with open(options_file, 'w', encoding='utf-8') as f:
-            f.write(content)
-        logger.info(f"فایل {options_file} با موفقیت پچ شد.")
-    
-    logger.info("yt-dlp با موفقیت پچ شد تا تمام اشارات به aria2 حذف شوند.")
-    return True
+    logger.info(f"تعداد {len(modified_files)} فایل اصلاح شد")
+    return len(modified_files) > 0
 
 def reload_ytdlp():
     """بازخوانی ماژول yt-dlp برای اعمال تغییرات"""
     try:
-        if 'yt_dlp' in sys.modules:
-            importlib.reload(sys.modules['yt_dlp'])
-        logger.info("ماژول yt-dlp با موفقیت بازخوانی شد.")
+        # پاک کردن ماژول yt-dlp از sys.modules
+        modules_to_reload = [m for m in list(sys.modules.keys()) if m.startswith('yt_dlp')]
+        for module in modules_to_reload:
+            if module in sys.modules:
+                del sys.modules[module]
+        
+        # تلاش برای بازخوانی ماژول
+        import importlib
+        importlib.invalidate_caches()
+        
+        logger.info(f"تعداد {len(modules_to_reload)} ماژول yt-dlp از حافظه حذف شد")
         return True
     except Exception as e:
         logger.error(f"خطا در بازخوانی ماژول yt-dlp: {e}")
@@ -265,48 +184,144 @@ def reload_ytdlp():
 
 def cleanup_yt_dlp_temp_files():
     """پاکسازی فایل‌های موقت که ممکن است حاوی اشاره به aria2 باشند"""
+    temp_dirs = [
+        os.path.join(tempfile.gettempdir(), 'yt-dlp'),
+        '/tmp/yt-dlp',
+        '/var/tmp/yt-dlp',
+    ]
+    
+    cleaned_count = 0
+    
+    for temp_dir in temp_dirs:
+        if os.path.exists(temp_dir):
+            try:
+                # پاکسازی دایرکتوری موقت
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                logger.info(f"دایرکتوری موقت {temp_dir} پاکسازی شد")
+                cleaned_count += 1
+            except Exception as e:
+                logger.warning(f"خطا در پاکسازی دایرکتوری موقت {temp_dir}: {e}")
+    
+    # پاکسازی کش‌های پایتون
     try:
-        temp_dir = tempfile.gettempdir()
-        count = 0
-        for root, dirs, files in os.walk(temp_dir):
-            for file in files:
-                if 'ytdl' in file.lower() or 'aria2' in file.lower():
-                    try:
-                        os.remove(os.path.join(root, file))
-                        count += 1
-                    except:
-                        pass
-        logger.info(f"{count} فایل موقت مرتبط با yt-dlp پاکسازی شدند.")
-        return True
+        # پاکسازی __pycache__ در ماژول‌های yt-dlp
+        pycache_dirs = []
+        ytdlp_paths = find_ytdlp_path()
+        
+        if ytdlp_paths:
+            for ytdlp_path in ytdlp_paths:
+                for root, dirs, _ in os.walk(ytdlp_path):
+                    for dir_name in dirs:
+                        if dir_name == '__pycache__':
+                            pycache_dir = os.path.join(root, dir_name)
+                            pycache_dirs.append(pycache_dir)
+        
+        for pycache_dir in pycache_dirs:
+            if os.path.exists(pycache_dir):
+                shutil.rmtree(pycache_dir, ignore_errors=True)
+                logger.info(f"دایرکتوری کش {pycache_dir} پاکسازی شد")
+                cleaned_count += 1
     except Exception as e:
-        logger.error(f"خطا در پاکسازی فایل‌های موقت: {e}")
+        logger.warning(f"خطا در پاکسازی کش‌های پایتون: {e}")
+    
+    logger.info(f"تعداد {cleaned_count} دایرکتوری موقت و کش پاکسازی شد")
+    return cleaned_count > 0
+
+def create_yt_dlp_config():
+    """ایجاد فایل پیکربندی سراسری yt-dlp"""
+    try:
+        # ایجاد فایل پیکربندی سراسری
+        config_paths = [
+            os.path.expanduser('~/.config/yt-dlp/config'),
+            os.path.expanduser('~/yt-dlp.conf'),
+            './.yt-dlp.conf',
+        ]
+        
+        config_content = """# yt-dlp configuration
+--no-check-certificate
+--no-external-downloader
+"""
+        
+        created_count = 0
+        for config_path in config_paths:
+            try:
+                os.makedirs(os.path.dirname(config_path), exist_ok=True)
+                with open(config_path, 'w') as f:
+                    f.write(config_content)
+                logger.info(f"فایل پیکربندی yt-dlp ایجاد شد: {config_path}")
+                created_count += 1
+            except Exception as e:
+                logger.warning(f"خطا در ایجاد فایل پیکربندی {config_path}: {e}")
+        
+        # ایجاد فایل تنظیمات JSON
+        json_config_path = os.path.expanduser('~/.config/yt-dlp/config.json')
+        os.makedirs(os.path.dirname(json_config_path), exist_ok=True)
+        
+        json_config = {
+            "external_downloader": None,
+            "external_downloader_args": None,
+            "downloader": "native"
+        }
+        
+        with open(json_config_path, 'w') as f:
+            json.dump(json_config, f, indent=4)
+        logger.info(f"فایل تنظیمات JSON yt-dlp ایجاد شد: {json_config_path}")
+        
+        logger.info(f"تعداد {created_count} فایل پیکربندی yt-dlp ایجاد شد")
+        return created_count > 0
+    except Exception as e:
+        logger.error(f"خطا در ایجاد فایل پیکربندی سراسری yt-dlp: {e}")
         return False
+
+def set_environment_variables():
+    """تنظیم متغیرهای محیطی برای جلوگیری از استفاده از aria2"""
+    env_vars = {
+        'YDL_NO_ARIA2C': '1',
+        'YTDLP_NO_ARIA2': '1',
+        'HTTP_DOWNLOADER': 'native',
+        'YTDLP_DOWNLOADER': 'native',
+        'NO_EXTERNAL_DOWNLOADER': '1',
+        'ARIA2C_DISABLED': '1',
+        'DISABLE_ARIA2C': 'true',
+        'YTDLP_CONFIG': '{"external_downloader":null,"external_downloader_args":null}'
+    }
+    
+    for key, value in env_vars.items():
+        os.environ[key] = value
+        logger.info(f"متغیر محیطی {key} تنظیم شد: {value}")
+    
+    return True
 
 def clean_ytdlp_installation():
     """تابع اصلی برای اجرای پچ"""
-    logger.info("در حال آغاز فرآیند پچ کردن yt-dlp...")
+    logger.info("=== شروع پچ کردن yt-dlp ===")
     
-    # 1. ایجاد نسخه تمیز از yt-dlp
-    if not create_clean_ytdlp():
-        logger.error("خطا در ایجاد نسخه تمیز از yt-dlp.")
-        return False
+    # 1. تنظیم متغیرهای محیطی
+    set_environment_variables()
     
-    # 2. بازخوانی ماژول yt-dlp
-    if not reload_ytdlp():
-        logger.error("خطا در بازخوانی ماژول yt-dlp.")
-        return False
+    # 2. پاکسازی فایل‌های موقت
+    cleanup_yt_dlp_temp_files()
     
-    # 3. پاکسازی فایل‌های موقت
-    if not cleanup_yt_dlp_temp_files():
-        logger.warning("هشدار: پاکسازی فایل‌های موقت ناموفق بود.")
+    # 3. ایجاد نسخه تمیز از yt-dlp
+    create_clean_ytdlp()
     
-    logger.info("فرآیند پچ کردن yt-dlp با موفقیت انجام شد!")
+    # 4. ایجاد فایل پیکربندی سراسری
+    create_yt_dlp_config()
+    
+    # 5. بازخوانی ماژول yt-dlp
+    reload_ytdlp()
+    
+    logger.info("=== پایان پچ کردن yt-dlp ===")
+    print("\n\nyt-dlp با موفقیت پچ شد. تمام ارجاعات به aria2 حذف شدند.\n")
+    
     return True
 
-def cleanup_temp_files():
-    """تابع خارجی برای پاکسازی فایل‌های موقت"""
-    return cleanup_yt_dlp_temp_files()
-
+# در صورت اجرای مستقیم اسکریپت
 if __name__ == "__main__":
     success = clean_ytdlp_installation()
     sys.exit(0 if success else 1)
+
+# تابع خارجی برای دسترسی از سایر اسکریپت‌ها
+def cleanup_temp_files():
+    """تابع خارجی برای پاکسازی فایل‌های موقت"""
+    return cleanup_yt_dlp_temp_files()

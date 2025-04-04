@@ -1,0 +1,41 @@
+[phases.setup]
+aptPkgs = ["ffmpeg", "python3-dev", "python3-pip"]
+nixPkgs = ["ffmpeg", "python3", "python3Packages.pip"]
+nixLibs = []
+cmds = [
+  "echo 'Removing any trace of aria2...'",
+  "rm -rf /nix/store/*aria2*",
+  "find / -name 'aria2*' -delete 2>/dev/null || true"
+]
+
+[phases.install]
+cmds = [
+  "echo 'Installing dependencies...'",
+  "python -m venv /opt/venv",
+  "source /opt/venv/bin/activate",
+  "pip install --upgrade pip",
+  "pip install -r requirements.txt",
+  "python complete_aria2_removal.py || true",
+  "python clean_ytdlp_patch.py || true"
+]
+
+[phases.build]
+cmds = [
+  "echo 'Running final cleaning...'",
+  "python complete_aria2_removal.py || true",
+  "find / -name 'aria2*' -type f -delete 2>/dev/null || true",
+  "! command -v aria2c > /dev/null && echo 'SUCCESS: aria2c not found'"
+]
+
+[start]
+cmd = "python complete_aria2_removal.py && python clean_ytdlp_patch.py && python telegram_downloader.py"
+
+[variables]
+YDL_NO_ARIA2C = "1"
+YTDLP_NO_ARIA2 = "1"
+HTTP_DOWNLOADER = "native"
+YTDLP_DOWNLOADER = "native"
+NO_EXTERNAL_DOWNLOADER = "1"
+ARIA2C_DISABLED = "1"
+DISABLE_ARIA2C = "true"
+YTDLP_CONFIG = "{\"external_downloader\":null,\"external_downloader_args\":null}"
